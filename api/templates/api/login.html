@@ -10,12 +10,13 @@
         <p>Connectez-vous à votre cabinet médical</p>
     </div>
 
-    <form id="loginForm">
+    <form id="loginForm" method="POST">
+        {% csrf_token %}
         <div class="form-group">
             <label for="email">Adresse email</label>
             <div class="input-wrapper">
                 <i data-lucide="mail" class="prefix-icon"></i>
-                <input type="email" id="email" placeholder="dr.martin@exemple.fr" required>
+                <input type="email" id="email" name="email" placeholder="dr.martin@exemple.fr" required>
             </div>
         </div>
 
@@ -23,7 +24,7 @@
             <label for="password">Mot de passe</label>
             <div class="input-wrapper">
                 <i data-lucide="lock" class="prefix-icon"></i>
-                <input type="password" id="password" placeholder="••••••••" required>
+                <input type="password" id="password" placeholder="••••••••" name="password" required>
                 <button type="button" class="toggle-pass" id="togglePassword">
                     <i data-lucide="eye" id="eyeIcon"></i>
                 </button>
@@ -34,7 +35,7 @@
             <a href="#" class="forgot-link">Oublié ?</a>
         </div>
 
-        <button type="submit" class="submit-btn" id="submitBtn">
+        <button type="submit" class="submit-btn" id="submitBtn" onclick="this.innerHTML='Connexion...';">
             <span id="btnText">Se connecter</span>
             <div class="loader" id="loader"></div>
             <i data-lucide="arrow-right" id="arrowIcon"></i>

@@ -1,0 +1,21 @@
+{% extends 'api/principale.html' %}
+{% block contenue_principale %}
+<p>Bienvenue Dr {{ user.first_name }} {{ user.last_name }}</p>
+<div id="nav">
+    {% include "api/nav_med.html" %}
+</div>
+<div><p>nombre des patients en attente</p></div>
+<div><p>de ts aiko ze abiny</p></div>
+<div>
+    <table>
+        <tr>
+            <td>nom</td>
+            <td>prenom</td>
+            <td>date</td>
+            <td>heure</td>
+            <td>raha mety de ze date akaiky no atao abony</td>
+        </tr>
+    </table>
+</div>
+
+{% endblock %}

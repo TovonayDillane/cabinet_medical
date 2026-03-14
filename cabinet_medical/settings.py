@@ -112,6 +112,9 @@ USE_I18N = True
 
 USE_TZ = True
 
+# Permet de refuser l'accés des touts les pages sans passer par login_views
+LOGIN_URL = 'login_views'
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/

@@ -172,6 +172,20 @@
         {% endblock %} 
     
     </div>
+    
+<!-- ty lty mba itedavo toerana ao @front ao fa ty no mandefa message oe mot de passe incorrect -->
+
+    <div id="message">
+        {% if messages %}
+        <ul class="messages">
+            {% for message in messages %}
+            <li{% if message.tags %} class="{{ message.tags }}"{% endif %} >
+                {{ message }}
+            </li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+    </div>
 
     <script>
         lucide.createIcons();
@@ -191,8 +205,8 @@
             eyeIcon.setAttribute('data-lucide', type === 'password' ? 'eye' : 'eye-off');
             lucide.createIcons();
         });
-
-        loginForm.addEventListener('submit', (e) => {
+        
+        /* loginForm.addEventListener('submit', (e) => {
             e.preventDefault();
             btnText.textContent = "Vérification...";
             loader.style.display = "block";
@@ -209,6 +223,7 @@
                 submitBtn.style.opacity = "1";
             }, 2000);
         });
+        */
     </script>
 </body>
 </html>
