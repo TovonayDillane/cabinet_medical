@@ -40,5 +40,5 @@ def dashboard_secre(request):
 @login_required(login_url='login_views')
 @never_cache
 def logout_view(request):
-    logout(request) # Détruit la session
+    logout(request) 
     return redirect('login_views')
