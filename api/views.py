@@ -9,22 +9,20 @@ from django.views.decorators.cache import never_cache
 
 def login_views(request):
     if request.method == 'POST':
-        email = request.POST.get("email")
+        username = request.POST.get('username') 
         mdp = request.POST.get("password")
-        if email:
-            user = authenticate(request, username= email, password= mdp)
+        if username:
+            user = authenticate(request, username=username, password=mdp)  # ✅ username au lieu de email
             if user is not None:
                 login(request, user)
                 if hasattr(user, 'profil_medecin'):
-                    print('tokony ety')
                     return redirect('dashboard_med')
                 elif hasattr(user, 'profil_secretaire'):
                     return redirect('dashboard_secre')
                 else:
                     return redirect('/admin')
             else:
-                messages.error(request, "mot de passe incorrect ou utilisateur invalide")
-                print('utilisateur inconue')
+                messages.error(request, "Mot de passe incorrect ou utilisateur invalide")
     return render(request, 'api/login.html')
 
 @login_required(login_url='login_views')
