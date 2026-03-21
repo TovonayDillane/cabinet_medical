@@ -1,6 +1,110 @@
 {% extends "api/index.html" %}
-{% block contenue %}
 
-<a href="{% url 'login' %}">Medecin</a>
-<a href="{% url 'login' %}">secretaire</a>
+{% block contenue %}
+<style>
+    /* Importation d'une police moderne */
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
+
+    .selection-body {
+        font-family: 'Poppins', sans-serif;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 70vh;
+        background-color: #f4f7f6;
+        margin: 0;
+    }
+
+    .selection-container {
+        text-align: center;
+        background: white;
+        padding: 40px;
+        border-radius: 20px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        max-width: 600px;
+        width: 90%;
+    }
+
+    .selection-container h1 {
+        color: #2c3e50;
+        margin-bottom: 10px;
+        font-weight: 600;
+    }
+
+    .selection-container p {
+        color: #7f8c8d;
+        margin-bottom: 30px;
+    }
+
+    .cards-wrapper {
+        display: flex;
+        gap: 20px;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .role-card {
+        text-decoration: none;
+        color: #333;
+        border: 2px solid #e0e0e0;
+        border-radius: 15px;
+        padding: 30px;
+        width: 180px;
+        transition: all 0.3s ease;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 15px;
+    }
+
+    .role-card:hover {
+        border-color: #3498db;
+        transform: translateY(-5px);
+        box-shadow: 0 5px 15px rgba(52, 152, 219, 0.2);
+        background-color: #faffff;
+    }
+
+    .role-card i {
+        font-size: 3rem;
+        color: #3498db;
+    }
+
+    .role-card span {
+        font-weight: 600;
+        font-size: 1.1rem;
+        color: #2c3e50;
+    }
+
+    /* Couleurs spécifiques pour différencier */
+    .role-card.medecin:hover i { color: #3cb1e7; }
+    .role-card.medecin:hover { border-color: #3cb1e7; }
+
+    .role-card.secretaire:hover i { color: #2ecc71; }
+    .role-card.secretaire:hover { border-color: #2ecc71; }
+
+</style>
+
+<!-- Ajout de FontAwesome pour les icônes -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+<div class="selection-body">
+    <div class="selection-container">
+        <h1>Bienvenue</h1>
+        <p>Veuillez sélectionner votre profil pour continuer</p>
+        
+        <div class="cards-wrapper">
+            <!-- Lien Médecin -->
+            <a href="{% url 'login' %}" class="role-card medecin">
+                <i class="fas fa-user-md"></i>
+                <span>Médecin</span>
+            </a>
+
+            <!-- Lien Secrétaire -->
+            <a href="{% url 'login' %}" class="role-card secretaire">
+                <i class="fas fa-user-tie"></i>
+                <span>Secrétaire</span>
+            </a>
+        </div>
+    </div>
+</div>
 {% endblock %}
