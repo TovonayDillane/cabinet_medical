@@ -829,6 +829,25 @@ body {
 }
 
 /* Additional Button Styles */
+.btn-valid-pat {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 1px solid var(--border-light);
+    background: white;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+}
+.btn-valid-pat:hover {
+    background: rgba(0, 250, 83, 0.1);
+    border-color: var(--primary-dark);
+    box-shadow: var(--shadow-sm);
+}
 .btn-edit,
 .btn-delete {
     width: 36px;
@@ -866,13 +885,30 @@ body {
 }
 
 .btn-danger {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 10px;
+    font-size: 0.95rem;
+    font-weight: 600;
     background: var(--danger);
     color: white;
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex: 1;
 }
 
 .btn-danger:hover {
     background: #dc2626;
-    box-shadow: 0 8px 16px rgba(239, 68, 68, 0.2);
+    transform: translateY(-2px);
+    box-shadow: 0 12px 24px rgba(239, 68, 68, 0.25);
+}
+
+.btn-danger:active {
+    transform: translateY(0);
 }
 
 .btn-icon-close {
@@ -1062,6 +1098,40 @@ body {
 
 .modal-actions button {
     flex: 1;
+    padding: 12px 20px;
+    min-height: 44px;
+    border-radius: 10px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: none;
+    white-space: nowrap;
+}
+
+.modal-actions .btn-danger {
+    background: var(--danger);
+    color: white;
+}
+
+.modal-actions .btn-danger:hover {
+    background: #dc2626;
+    box-shadow: 0 12px 24px rgba(239, 68, 68, 0.25);
+}
+
+.modal-actions .btn-secondary {
+    background: var(--bg-light);
+    color: var(--primary);
+    border: 1px solid var(--border-light);
+}
+
+.modal-actions .btn-secondary:hover {
+    background: var(--border-light);
+    border-color: var(--primary);
 }
 
 /* Status Colors */

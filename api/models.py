@@ -55,6 +55,7 @@ class RendezVous(models.Model):
     medecin = models.ForeignKey(Medecin, on_delete=models.CASCADE)
     date = models.DateField()
     heure = models.TimeField()
+    statut = models.CharField(max_length=11, default='attente')
 
 class Consultation(models.Model):
     patient = models.ForeignKey(Patient, on_delete=models.CASCADE)

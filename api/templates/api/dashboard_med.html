@@ -29,6 +29,10 @@
                     <i class="fas fa-procedures"></i>
                     <span>Patients</span>
                 </a>
+                <a href="#" class="nav-item" data-section="consultations">
+                    <i class="fas fa-stethoscope"></i>
+                    <span>Consultations</span>
+                </a>
                 <a href="#" class="nav-item" data-section="prescriptions">
                     <i class="fas fa-file-medical"></i>
                     <span>Prescriptions</span>
@@ -240,12 +244,89 @@
                     </div>
                 </section>
 
+                <!-- ===== CONSULTATIONS SECTION ===== -->
+                <section id="consultations-section" class="content-section">
+                    <div class="section-header">
+                        <div>
+                            <h1>Consultations</h1>
+                            <p>Suivi des consultations avec vos patients</p>
+                        </div>
+                        <button class="btn-primary" id="btn-add-consultation">
+                            <i class="fas fa-plus"></i> Nouvelle consultation
+                        </button>
+                    </div>
+
+                    <!-- Formulaire Consultation (caché par défaut) -->
+                    <div class="form-container" id="consultation-form-container" style="display:none; margin-bottom: 28px;">
+                        <div class="form-title-row">
+                            <h3 id="consultation-form-title"><i class="fas fa-stethoscope"></i> Nouvelle consultation</h3>
+                            <button class="btn-icon-close" id="btn-close-consultation-form"><i class="fas fa-times"></i></button>
+                        </div>
+                        <form id="formConsultation">
+                            <input type="hidden" id="consultation-id">
+                            <div class="form-group">
+                                <label for="cons-patient">Patient *</label>
+                                <input type="text" id="cons-patient" class="form-input" placeholder="Nom du patient" required list="patients-datalist-cons">
+                                <datalist id="patients-datalist-cons"></datalist>
+                            </div>
+                            <div class="form-group">
+                                <label for="cons-symptome">Symptômes *</label>
+                                <textarea id="cons-symptome" rows="4" class="form-input" placeholder="Décrivez les symptômes du patient" required></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="cons-diagnostic">Diagnostic *</label>
+                                <textarea id="cons-diagnostic" rows="4" class="form-input" placeholder="Diagnostic et observations" required></textarea>
+                            </div>
+                            <div class="form-actions">
+                                <button type="submit" class="btn-primary">
+                                    <i class="fas fa-save"></i> Enregistrer
+                                </button>
+                                <button type="button" class="btn-secondary" id="btn-cancel-consultation">
+                                    <i class="fas fa-times"></i> Annuler
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Table Consultations -->
+                    <div class="table-container">
+                        <div class="table-header">
+                            <h2>Consultations</h2>
+                            <div class="search-inline">
+                                <i class="fas fa-search"></i>
+                                <input type="text" id="consultation-search" class="search-input-sm" placeholder="Rechercher...">
+                            </div>
+                        </div>
+                        <div class="table-wrapper">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Patient</th>
+                                        <th>Symptômes</th>
+                                        <th>Diagnostic</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="consultationTableBody">
+                                    <tr>
+                                        <td colspan="5" class="empty-state">
+                                            <i class="fas fa-stethoscope"></i>
+                                            <p>Aucune consultation enregistrée</p>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
                 <!-- ===== PRESCRIPTIONS SECTION ===== -->
                 <section id="prescriptions-section" class="content-section">
                     <div class="section-header">
                         <div>
                             <h1>Prescriptions</h1>
-                            <p>Gérez les ordonnances de vos patients</p>
+                            <p>Ordonnances liées aux consultations</p>
                         </div>
                         <button class="btn-primary" id="btn-add-prescription">
                             <i class="fas fa-plus"></i> Nouvelle prescription
@@ -260,24 +341,15 @@
                         </div>
                         <form id="formPrescription">
                             <input type="hidden" id="prescription-id">
-                            <div class="form-grid-2">
-                                <div class="form-group">
-                                    <label for="pres-patient">Patient *</label>
-                                    <input type="text" id="pres-patient" class="form-input" placeholder="Nom du patient" required list="patients-datalist-pres">
-                                    <datalist id="patients-datalist-pres"></datalist>
-                                </div>
-                                <div class="form-group">
-                                    <label for="pres-date">Date *</label>
-                                    <input type="date" id="pres-date" class="form-input" required>
-                                </div>
+                            <div class="form-group">
+                                <label for="pres-consultation">Consultation *</label>
+                                <select id="pres-consultation" class="form-input" required>
+                                    <option value="">-- Sélectionner une consultation --</option>
+                                </select>
                             </div>
                             <div class="form-group">
-                                <label for="pres-medications">Médicaments *</label>
-                                <textarea id="pres-medications" rows="5" class="form-input" placeholder="Ex: Paracétamol 500mg - 1 comprimé matin et soir&#10;Amoxicilline 500mg - 1 gélule 3 fois par jour" required></textarea>
-                            </div>
-                            <div class="form-group">
-                                <label for="pres-notes">Instructions et Notes</label>
-                                <textarea id="pres-notes" rows="3" class="form-input" placeholder="Avertissements, interactions, recommandations..."></textarea>
+                                <label for="pres-medicaments">Médicaments *</label>
+                                <textarea id="pres-medicaments" rows="5" class="form-input" placeholder="Ex: Paracétamol 500mg - 1 comprimé matin et soir&#10;Amoxicilline 500mg - 1 gélule 3 fois par jour" required></textarea>
                             </div>
                             <div class="form-actions">
                                 <button type="submit" class="btn-primary">
@@ -303,7 +375,7 @@
                             <table class="data-table">
                                 <thead>
                                     <tr>
-                                        <th>Date</th>
+                                        <th>Date Consultation</th>
                                         <th>Patient</th>
                                         <th>Médicaments</th>
                                         <th>Actions</th>

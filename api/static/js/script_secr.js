@@ -7,13 +7,13 @@ const DashboardSecr = (() => {
 
     // ========== CONFIGURATION ==========
     const config = {
-        apiBaseUrl: '/api',
+        apiBaseUrl: '',  // Relative URLs
         endpoints: {
-            dashboard: '/dashboard/secretaire/',
-            doctors:   '/medecins/',
-            patients:  '/patients/',
-            appointments: '/rendezvous/',
-            user:      '/user/',
+            dashboard: '/api/dashboard/secretaire/',
+            doctors:   '/api/medecins/',
+            patients:  '/api/patients/',
+            appointments: '/api/rendezvous/',
+            user:      '/api/user/',
             logout:    '/logout/',
         },
     };
@@ -69,11 +69,12 @@ const DashboardSecr = (() => {
     // ========== API REQUESTS ==========
 
     const fetchAPI = async (endpoint, options = {}) => {
-        const url = `${config.apiBaseUrl}${endpoint}`;
+        const url = endpoint.startsWith('http') ? endpoint : (config.apiBaseUrl + endpoint);
         const defaults = {
             headers: {
                 'Content-Type': 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
             },
             credentials: 'include',
         };
@@ -160,29 +161,26 @@ const DashboardSecr = (() => {
         const tbody = document.getElementById('doctorTableBody');
         if (!tbody) return;
         if (!state.filteredDoctors.length) {
-            tbody.innerHTML = emptyRow(6, 'Aucun médecin enregistré', 'fa-user-md');
+            tbody.innerHTML = emptyRow(4, 'Aucun médecin enregistré', 'fa-user-md');
             return;
         }
         tbody.innerHTML = state.filteredDoctors.map(doc => {
-            const statusMap = {
-                'disponible':   ['green',  'Disponible'],
-                'indisponible': ['orange', 'Indisponible'],
-                'conge':        ['blue',   'En congé'],
+            const statuMap = {
+                'DISPONIBLE': ['green',  'Disponible'],
+                'OCCUPE':     ['orange', 'Occupé'],
             };
-            const [sc, sl] = statusMap[doc.disponibilite] || ['orange', doc.disponibilite || '-'];
+            const [sc, sl] = statuMap[doc.statue] || ['orange', doc.statue || '-'];
             return `<tr>
-                <td><strong>Dr. ${doc.nom || ''} ${doc.prenom || ''}</strong></td>
+                <td><strong>Dr. ${doc.user_last_name || doc.nom || ''} ${doc.user_first_name || doc.prenom || ''}</strong></td>
                 <td>${doc.specialite || '-'}</td>
-                <td>${doc.telephone || '-'}</td>
-                <td>${doc.email || '-'}</td>
                 <td><span class="status ${sc}">${sl}</span></td>
                 <td>
                     <div class="action-btns">
                         <button class="btn-edit" onclick="DashboardSecr.editDoctor(${doc.id})">
-                            <i class="fas fa-pen"></i>
+                            <i class="fas fa-pen"></i>M
                         </button>
-                        <button class="btn-delete" onclick="DashboardSecr.confirmDelete('doctor', ${doc.id}, 'Dr. ${doc.nom} ${doc.prenom}')">
-                            <i class="fas fa-trash"></i>
+                        <button class="btn-delete" onclick="DashboardSecr.confirmDelete('doctor', ${doc.id}, '${(doc.user_last_name || doc.nom || '') + ' ' + (doc.user_first_name || doc.prenom || '')}')">
+                            <i class="fas fa-trash"></i>X
                         </button>
                     </div>
                 </td>
@@ -202,17 +200,20 @@ const DashboardSecr = (() => {
         tbody.innerHTML = state.filteredPatients.map(p => `<tr>
             <td><strong>${p.nom || ''} ${p.prenom || ''}</strong></td>
             <td>${formatDate(p.date_naissance)}</td>
-            <td>${p.sexe === 'M' ? 'Masculin' : p.sexe === 'F' ? 'Féminin' : '-'}</td>
+            <td>${p.sexe === 'H' ? 'Homme' : p.sexe === 'F' ? 'Femme' : '-'}</td>
             <td>${p.telephone || '-'}</td>
             <td><span class="status ${p.groupe_sanguin ? 'purple' : ''}">${p.groupe_sanguin || '-'}</span></td>
             <td>${p.allergie ? `<span title="${p.allergie}">⚠ ${p.allergie.substring(0, 20)}${p.allergie.length > 20 ? '…' : ''}</span>` : '-'}</td>
             <td>
                 <div class="action-btns">
+                    <button class="btn-valid-pat" onclick="DashboardSecr.btnAddRdvPat(${p.id})">
+                        <i class="fas fa-pen"></i>V
+                    </button>
                     <button class="btn-edit" onclick="DashboardSecr.editPatient(${p.id})">
-                        <i class="fas fa-pen"></i>
+                        <i class="fas fa-pen"></i>M
                     </button>
                     <button class="btn-delete" onclick="DashboardSecr.confirmDelete('patient', ${p.id}, '${p.nom} ${p.prenom}')">
-                        <i class="fas fa-trash"></i>
+                        <i class="fas fa-trash"></i>X
                     </button>
                 </div>
             </td>
@@ -343,9 +344,10 @@ const DashboardSecr = (() => {
         const sel = document.getElementById('rdv-medecin');
         if (!sel) return;
         sel.innerHTML = '<option value="">-- Sélectionner un médecin --</option>' +
-            state.doctors.map(d =>
-                `<option value="${d.id}">Dr. ${d.nom} ${d.prenom} — ${d.specialite || ''}</option>`
-            ).join('');
+            state.doctors.map(d => {
+                const nom = (d.user_last_name || d.nom || '') + ' ' + (d.user_first_name || d.prenom || '');
+                return `<option value="${d.id}">Dr. ${nom} — ${d.specialite || ''}</option>`;
+            }).join('');
     };
 
     // ========== NAVIGATION ==========
@@ -408,13 +410,14 @@ const DashboardSecr = (() => {
         const doc = state.doctors.find(d => d.id === id);
         if (!doc) return;
         document.getElementById('doctor-id').value = id;
-        document.getElementById('doc-nom').value = doc.nom || '';
-        document.getElementById('doc-prenom').value = doc.prenom || '';
+        document.getElementById('doc-nom').value = doc.user_last_name || doc.nom || '';
+        document.getElementById('doc-prenom').value = doc.user_first_name || doc.prenom || '';
+        document.getElementById('doc-username').value = doc.user_username || doc.username || '';
+        document.getElementById('doc-email').value = doc.user_email || doc.email || '';
         document.getElementById('doc-specialite').value = doc.specialite || '';
-        document.getElementById('doc-telephone').value = doc.telephone || '';
-        document.getElementById('doc-email').value = doc.email || '';
-        document.getElementById('doc-disponibilite').value = doc.disponibilite || 'disponible';
-        document.getElementById('doctor-form-title').innerHTML = `<i class="fas fa-pen"></i> Modifier Dr. ${doc.nom} ${doc.prenom}`;
+        document.getElementById('doc-statue').value = doc.statue || 'DISPONIBLE';
+        const name = (doc.user_last_name || doc.nom || '') + ' ' + (doc.user_first_name || doc.prenom || '');
+        document.getElementById('doctor-form-title').innerHTML = `<i class="fas fa-pen"></i> Modifier Dr. ${name}`;
         showForm('doctor-form-container');
     };
 
@@ -422,12 +425,13 @@ const DashboardSecr = (() => {
         e.preventDefault();
         const id = document.getElementById('doctor-id').value;
         const payload = {
-            nom:           document.getElementById('doc-nom').value.trim(),
-            prenom:        document.getElementById('doc-prenom').value.trim(),
-            specialite:    document.getElementById('doc-specialite').value.trim(),
-            telephone:     document.getElementById('doc-telephone').value.trim(),
-            email:         document.getElementById('doc-email').value.trim(),
-            disponibilite: document.getElementById('doc-disponibilite').value,
+            user_last_name:   document.getElementById('doc-nom').value.trim(),
+            user_first_name:  document.getElementById('doc-prenom').value.trim(),
+            user_username:    document.getElementById('doc-username').value.trim(),
+            user_email:       document.getElementById('doc-email').value.trim(),
+            user_password:    document.getElementById('doc-password').value.trim(),
+            specialite:       document.getElementById('doc-specialite').value,
+            statue:           document.getElementById('doc-statue').value,
         };
 
         try {
@@ -493,6 +497,17 @@ const DashboardSecr = (() => {
     };
 
     // ========== CRUD RENDEZ-VOUS ==========
+    // ajout rendez vous a partir du liste des patient
+    const btnAddRdvPat = (id) => {
+        const p = state.patients.find(x => x.id == id);
+        if (!p) { 
+            return;
+        }
+        document.getElementById('rdv-id').value = id;
+        document.getElementById('rdv-patient').value = `${p.nom} ${p.prenom}` || '';
+        showSection('appointments');
+        showForm('rdv-form-container');
+    };
 
     const editRdv = (id) => {
         const r = state.appointments.find(x => x.id === id);
@@ -626,7 +641,7 @@ const DashboardSecr = (() => {
                 const term = e.target.value.toLowerCase();
                 if (state.currentSection === 'doctors') {
                     state.filteredDoctors = state.doctors.filter(d =>
-                        `${d.nom} ${d.prenom} ${d.specialite}`.toLowerCase().includes(term));
+                        `${d.user_last_name} ${d.user_first_name} ${d.specialite}`.toLowerCase().includes(term));
                     renderDoctorTable();
                 } else if (state.currentSection === 'patients') {
                     state.filteredPatients = state.patients.filter(p =>
@@ -657,7 +672,7 @@ const DashboardSecr = (() => {
             doctorSearch.addEventListener('input', (e) => {
                 const term = e.target.value.toLowerCase();
                 state.filteredDoctors = state.doctors.filter(d =>
-                    `${d.nom} ${d.prenom} ${d.specialite}`.toLowerCase().includes(term));
+                    `${d.user_last_name} ${d.user_first_name} ${d.specialite}`.toLowerCase().includes(term));
                 renderDoctorTable();
             });
         }
@@ -703,7 +718,7 @@ const DashboardSecr = (() => {
 
         const formRdv = document.getElementById('formRdv');
         if (formRdv) formRdv.addEventListener('submit', submitRdvForm);
-
+        
         // Navigation date
         const filterDate = document.getElementById('rdv-filter-date');
         if (filterDate) {
@@ -794,6 +809,7 @@ const DashboardSecr = (() => {
         editPatient,
         editRdv,
         confirmDelete,
+        btnAddRdvPat,
         getState: () => state,
     };
 

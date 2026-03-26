@@ -115,6 +115,10 @@ USE_TZ = True
 # Permet de refuser l'accés des touts les pages sans passer par login_views
 LOGIN_URL = 'login_views'
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+CSRF_COOKIE_SECURE = False  # Désactiver pour développement en HTTP
+CSRF_COOKIE_HTTPONLY = False  # JavaScript doit accéder à la valeur du token
+SESSION_COOKIE_SECURE = False  # Désactiver pour développement en HTTP
+CSRF_TRUSTED_ORIGINS = ['http://127.0.0.1:8000', 'http://localhost:8000']
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
