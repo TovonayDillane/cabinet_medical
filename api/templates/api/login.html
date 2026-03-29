@@ -12,11 +12,11 @@
 
     <form id="loginForm" method="POST">
         {% csrf_token %}
-        <div class="form-group">
-            <label for="email">Adresse email</label>
+       <div class="form-group">
+            <label for="username">Nom d'utilisateur</label>
             <div class="input-wrapper">
-                <i data-lucide="mail" class="prefix-icon"></i>
-                <input type="email" id="email" name="email" placeholder="dr.martin@exemple.fr" required>
+                <i data-lucide="user" class="prefix-icon"></i>
+                <input type="text" id="username" name="username" placeholder="Martin" required>
             </div>
         </div>
 

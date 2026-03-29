@@ -1,21 +1,466 @@
 {% extends 'api/principale.html' %}
 {% block contenue_principale %}
-<p>Bienvenue Dr {{ user.first_name }} {{ user.last_name }}</p>
-<div id="nav">
-    {% include "api/nav_med.html" %}
-</div>
-<div><p>nombre des patients en attente</p></div>
-<div><p>de ts aiko ze abiny</p></div>
-<div>
-    <table>
-        <tr>
-            <td>nom</td>
-            <td>prenom</td>
-            <td>date</td>
-            <td>heure</td>
-            <td>raha mety de ze date akaiky no atao abony</td>
-        </tr>
-    </table>
-</div>
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Médecin</title>
+    <link rel="stylesheet" href="{% static 'css/style_secr.css' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-container">
+
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo">
+                <i class="fas fa-hospital-alt"></i>
+                <span>MediHub</span>
+            </div>
+            <nav class="nav-links">
+                <a href="#" class="nav-item active" data-section="dashboard">
+                    <i class="fas fa-th-large"></i>
+                    <span>Tableau de bord</span>
+                </a>
+                <div class="nav-group-label">Gestion</div>
+                <a href="#" class="nav-item" data-section="patients">
+                    <i class="fas fa-procedures"></i>
+                    <span>Patients</span>
+                </a>
+                <a href="#" class="nav-item" data-section="prescriptions">
+                    <i class="fas fa-file-medical"></i>
+                    <span>Prescriptions</span>
+                </a>
+                <a href="#" class="nav-item" data-section="appointments">
+                    <i class="fas fa-calendar-day"></i>
+                    <span>Rendez-vous</span>
+                    <span class="badge" id="rdv-badge">0</span>
+                </a>
+            </nav>
+            <div class="nav-footer">
+                <div class="user-card">
+                    <img src="https://ui-avatars.com/api/?name=Dr&background=0ea5e9&color=fff&rounded=true" alt="Avatar" class="sidebar-avatar">
+                    <div class="user-card-info">
+                        <span class="user-card-name" id="sidebar-username">Médecin</span>
+                        <span class="user-card-role">Praticien</span>
+                    </div>
+                </div>
+                <a href="#" class="nav-item logout" id="logoutBtn">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Déconnexion</span>
+                </a>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+
+            <!-- Top Bar -->
+            <header class="top-bar">
+                <div class="top-bar-left">
+                    <div class="search-container">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="globalSearch" placeholder="Rechercher patient..." class="search-input">
+                    </div>
+                </div>
+                <div class="top-bar-right">
+                    <div class="top-date">
+                        <i class="fas fa-calendar"></i>
+                        <span id="current-date"></span>
+                    </div>
+                    <div class="notification-btn" title="Notifications">
+                        <i class="fas fa-bell"></i>
+                        <span class="notif-dot"></span>
+                    </div>
+                    <div class="user-section">
+                        <div class="user-info">
+                            <span class="user-name">Dr. <span id="username">-</span></span>
+                            <span class="user-role">Médecin</span>
+                        </div>
+                        <img src="https://ui-avatars.com/api/?name=Dr&background=0ea5e9&color=fff" alt="Profile" class="user-avatar">
+                    </div>
+                </div>
+            </header>
+
+            <!-- Page Content -->
+            <div class="page-content">
+
+                <!-- ===== DASHBOARD SECTION ===== -->
+                <section id="dashboard-section" class="content-section active">
+                    <div class="section-header">
+                        <div>
+                            <h1>Tableau de bord</h1>
+                            <p>Vue d'ensemble de la journée</p>
+                        </div>
+                    </div>
+
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon blue">
+                                <i class="fas fa-user-injured"></i>
+                            </div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="stat-today-patients">0</div>
+                                <div class="stat-label">Patients aujourd'hui</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon orange">
+                                <i class="fas fa-hourglass-half"></i>
+                            </div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="stat-waiting">0</div>
+                                <div class="stat-label">En attente</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon green">
+                                <i class="fas fa-check-circle"></i>
+                            </div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="stat-completed">0</div>
+                                <div class="stat-label">Consultations complétées</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon purple">
+                                <i class="fas fa-prescription-bottle"></i>
+                            </div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="stat-prescriptions">0</div>
+                                <div class="stat-label">Prescriptions du jour</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Rendez-vous du jour (aperçu) -->
+                    <div class="dashboard-grid">
+                        <div class="table-container">
+                            <div class="table-header">
+                                <h2><i class="fas fa-calendar-day"></i> RDV du jour</h2>
+                                <a href="#" class="btn-link" data-section="appointments">
+                                    Voir tous <i class="fas fa-arrow-right"></i>
+                                </a>
+                            </div>
+                            <div class="table-wrapper">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Heure</th>
+                                            <th>Patient</th>
+                                            <th>Motif</th>
+                                            <th>Statut</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="dashboard-rdv-body">
+                                        <tr>
+                                            <td colspan="4" class="empty-state">
+                                                <i class="fas fa-calendar-times"></i>
+                                                <p>Aucun rendez-vous aujourd'hui</p>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Derniers patients -->
+                        <div class="table-container">
+                            <div class="table-header">
+                                <h2><i class="fas fa-user-clock"></i> Derniers patients</h2>
+                                <a href="#" class="btn-link" data-section="patients">
+                                    Voir tous <i class="fas fa-arrow-right"></i>
+                                </a>
+                            </div>
+                            <div class="table-wrapper">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Nom</th>
+                                            <th>Téléphone</th>
+                                            <th>Groupe sanguin</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="dashboard-patients-body">
+                                        <tr>
+                                            <td colspan="3" class="empty-state">
+                                                <i class="fas fa-inbox"></i>
+                                                <p>Aucun patient récent</p>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ===== PATIENTS SECTION ===== -->
+                <section id="patients-section" class="content-section">
+                    <div class="section-header">
+                        <div>
+                            <h1>Mes Patients</h1>
+                            <p>Gérez vos patients</p>
+                        </div>
+                    </div>
+
+                    <!-- Table Patients -->
+                    <div class="table-container">
+                        <div class="table-header">
+                            <h2>Liste des patients</h2>
+                            <div class="search-inline">
+                                <i class="fas fa-search"></i>
+                                <input type="text" id="patient-search" class="search-input-sm" placeholder="Rechercher...">
+                            </div>
+                        </div>
+                        <div class="table-wrapper">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nom complet</th>
+                                        <th>Date de naissance</th>
+                                        <th>Sexe</th>
+                                        <th>Téléphone</th>
+                                        <th>Groupe sanguin</th>
+                                        <th>Allergies</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="patientTableBody">
+                                    <tr>
+                                        <td colspan="6" class="empty-state">
+                                            <i class="fas fa-inbox"></i>
+                                            <p>Aucun patient enregistré</p>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ===== PRESCRIPTIONS SECTION ===== -->
+                <section id="prescriptions-section" class="content-section">
+                    <div class="section-header">
+                        <div>
+                            <h1>Prescriptions</h1>
+                            <p>Gérez les ordonnances de vos patients</p>
+                        </div>
+                        <button class="btn-primary" id="btn-add-prescription">
+                            <i class="fas fa-plus"></i> Nouvelle prescription
+                        </button>
+                    </div>
+
+                    <!-- Formulaire Prescription (caché par défaut) -->
+                    <div class="form-container" id="prescription-form-container" style="display:none; margin-bottom: 28px;">
+                        <div class="form-title-row">
+                            <h3 id="prescription-form-title"><i class="fas fa-file-medical"></i> Nouvelle prescription</h3>
+                            <button class="btn-icon-close" id="btn-close-prescription-form"><i class="fas fa-times"></i></button>
+                        </div>
+                        <form id="formPrescription">
+                            <input type="hidden" id="prescription-id">
+                            <div class="form-grid-2">
+                                <div class="form-group">
+                                    <label for="pres-patient">Patient *</label>
+                                    <input type="text" id="pres-patient" class="form-input" placeholder="Nom du patient" required list="patients-datalist-pres">
+                                    <datalist id="patients-datalist-pres"></datalist>
+                                </div>
+                                <div class="form-group">
+                                    <label for="pres-date">Date *</label>
+                                    <input type="date" id="pres-date" class="form-input" required>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="pres-medications">Médicaments *</label>
+                                <textarea id="pres-medications" rows="5" class="form-input" placeholder="Ex: Paracétamol 500mg - 1 comprimé matin et soir&#10;Amoxicilline 500mg - 1 gélule 3 fois par jour" required></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="pres-notes">Instructions et Notes</label>
+                                <textarea id="pres-notes" rows="3" class="form-input" placeholder="Avertissements, interactions, recommandations..."></textarea>
+                            </div>
+                            <div class="form-actions">
+                                <button type="submit" class="btn-primary">
+                                    <i class="fas fa-save"></i> Enregistrer
+                                </button>
+                                <button type="button" class="btn-secondary" id="btn-cancel-prescription">
+                                    <i class="fas fa-times"></i> Annuler
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Table Prescriptions -->
+                    <div class="table-container">
+                        <div class="table-header">
+                            <h2>Prescriptions</h2>
+                            <div class="search-inline">
+                                <i class="fas fa-search"></i>
+                                <input type="text" id="prescription-search" class="search-input-sm" placeholder="Rechercher...">
+                            </div>
+                        </div>
+                        <div class="table-wrapper">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Patient</th>
+                                        <th>Médicaments</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="prescriptionTableBody">
+                                    <tr>
+                                        <td colspan="4" class="empty-state">
+                                            <i class="fas fa-file-medical"></i>
+                                            <p>Aucune prescription enregistrée</p>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ===== RENDEZ-VOUS SECTION ===== -->
+                <section id="appointments-section" class="content-section">
+                    <div class="section-header">
+                        <div>
+                            <h1>Mes Rendez-vous</h1>
+                            <p id="rdv-date-label">Gestion des rendez-vous</p>
+                        </div>
+                    </div>
+
+                    <!-- Formulaire RDV (caché par défaut) -->
+                    <div class="form-container" id="rdv-form-container" style="display:none; margin-bottom: 28px;">
+                        <div class="form-title-row">
+                            <h3 id="rdv-form-title"><i class="fas fa-calendar-plus"></i> Nouveau rendez-vous</h3>
+                            <button class="btn-icon-close" id="btn-close-rdv-form"><i class="fas fa-times"></i></button>
+                        </div>
+                        <form id="formRdv">
+                            <input type="hidden" id="rdv-id">
+                            <div class="form-grid-2">
+                                <div class="form-group">
+                                    <label for="rdv-patient">Patient *</label>
+                                    <input type="text" id="rdv-patient" class="form-input" placeholder="Nom du patient" required list="patients-datalist-rdv">
+                                    <datalist id="patients-datalist-rdv"></datalist>
+                                </div>
+                                <div class="form-group">
+                                    <label for="rdv-date">Date *</label>
+                                    <input type="date" id="rdv-date" class="form-input" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="rdv-heure">Heure *</label>
+                                    <input type="time" id="rdv-heure" class="form-input" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="rdv-motif">Motif</label>
+                                    <input type="text" id="rdv-motif" class="form-input" placeholder="Motif de la consultation">
+                                </div>
+                                <div class="form-group">
+                                    <label for="rdv-statut">Statut</label>
+                                    <select id="rdv-statut" class="form-input">
+                                        <option value="attente">En attente</option>
+                                        <option value="confirme">Confirmé</option>
+                                        <option value="termine">Terminé</option>
+                                        <option value="annule">Annulé</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-actions">
+                                <button type="submit" class="btn-primary">
+                                    <i class="fas fa-save"></i> Enregistrer
+                                </button>
+                                <button type="button" class="btn-secondary" id="btn-cancel-rdv">
+                                    <i class="fas fa-times"></i> Annuler
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Filtre date + vue calendrier/liste -->
+                    <div class="rdv-controls">
+                        <div class="date-nav">
+                            <button class="btn-icon-nav" id="rdv-prev-day"><i class="fas fa-chevron-left"></i></button>
+                            <input type="date" id="rdv-filter-date" class="form-input date-picker">
+                            <button class="btn-icon-nav" id="rdv-next-day"><i class="fas fa-chevron-right"></i></button>
+                            <button class="btn-today" id="rdv-today">Aujourd'hui</button>
+                        </div>
+                        <div class="rdv-view-toggle">
+                            <button class="toggle-btn active" data-view="list"><i class="fas fa-list"></i> Liste</button>
+                            <button class="toggle-btn" data-view="timeline"><i class="fas fa-stream"></i> Chronologie</button>
+                        </div>
+                    </div>
+
+                    <!-- Vue Liste -->
+                    <div id="rdv-list-view">
+                        <div class="table-container">
+                            <div class="table-header">
+                                <h2>Rendez-vous <span id="rdv-count-label" class="count-chip">0</span></h2>
+                                <div class="filter-chips">
+                                    <button class="chip active" data-filter="all">Tous</button>
+                                    <button class="chip" data-filter="attente">En attente</button>
+                                    <button class="chip" data-filter="confirme">Confirmés</button>
+                                    <button class="chip" data-filter="termine">Terminés</button>
+                                </div>
+                            </div>
+                            <div class="table-wrapper">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Heure</th>
+                                            <th>Patient</th>
+                                            <th>Motif</th>
+                                            <th>Statut</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="rdvTableBody">
+                                        <tr>
+                                            <td colspan="5" class="empty-state">
+                                                <i class="fas fa-calendar-times"></i>
+                                                <p>Aucun rendez-vous pour cette date</p>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Vue Timeline -->
+                    <div id="rdv-timeline-view" style="display:none;">
+                        <div class="timeline-container" id="timeline-container">
+                            <div class="empty-state" style="padding:60px;">
+                                <i class="fas fa-stream"></i>
+                                <p>Aucun rendez-vous pour cette date</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+            </div><!-- end page-content -->
+        </main>
+    </div>
+
+    <!-- Modal de confirmation suppression -->
+    <div class="modal-overlay" id="delete-modal" style="display:none;">
+        <div class="modal-box">
+            <div class="modal-icon danger"><i class="fas fa-trash-alt"></i></div>
+            <h3>Confirmer la suppression</h3>
+            <p id="delete-modal-text">Voulez-vous vraiment supprimer cet élément ?</p>
+            <div class="modal-actions">
+                <button class="btn-danger" id="confirm-delete-btn">Supprimer</button>
+                <button class="btn-secondary" id="cancel-delete-btn">Annuler</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast notification -->
+    <div class="toast" id="toast"></div>
+
+    <script src="{% static 'js/script_med.js' %}"></script>
+</body>
+</html>
 
 {% endblock %}
