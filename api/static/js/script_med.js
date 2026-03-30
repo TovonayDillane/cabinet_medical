@@ -77,6 +77,7 @@ const DashboardMed = (() => {
             headers: {
                 'Content-Type': 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
             },
             credentials: 'include',
         };
@@ -202,11 +203,14 @@ const DashboardMed = (() => {
                 <td title="${cons.diagnostic}">${diagnostic}</td>
                 <td>
                     <div class="action-btns">
+                        <button class="btn-edit" onclick="DashboardMed.validConsultation(${cons.id})" title="Valider">
+                            <i class="fas fa-pen"></i>V
+                        </button>
                         <button class="btn-edit" onclick="DashboardMed.editConsultation(${cons.id})" title="Modifier">
-                            <i class="fas fa-pen"></i>
+                            <i class="fas fa-pen"></i>M
                         </button>
                         <button class="btn-delete" onclick="DashboardMed.confirmDelete('consultation', ${cons.id}, 'cette consultation')" title="Supprimer">
-                            <i class="fas fa-trash"></i>
+                            <i class="fas fa-trash"></i>X
                         </button>
                     </div>
                 </td>
@@ -247,10 +251,10 @@ const DashboardMed = (() => {
                 <td>
                     <div class="action-btns">
                         <button class="btn-edit" onclick="DashboardMed.editPrescription(${pres.id})" title="Modifier">
-                            <i class="fas fa-pen"></i>
+                            <i class="fas fa-pen"></i>M
                         </button>
                         <button class="btn-delete" onclick="DashboardMed.confirmDelete('prescription', ${pres.id}, 'cette prescription')" title="Supprimer">
-                            <i class="fas fa-trash"></i>
+                            <i class="fas fa-trash"></i>X
                         </button>
                     </div>
                 </td>
@@ -294,11 +298,14 @@ const DashboardMed = (() => {
                 <td><span class="status ${sc}">${sl}</span></td>
                 <td>
                     <div class="action-btns">
+                        <button class="btn-edit" onclick="DashboardMed.validRdv(${r.id})" title="Modifier">
+                            <i class="fas fa-pen"></i>V
+                        </button>
                         <button class="btn-edit" onclick="DashboardMed.editRdv(${r.id})" title="Modifier">
-                            <i class="fas fa-pen"></i>
+                            <i class="fas fa-pen"></i>M
                         </button>
                         <button class="btn-delete" onclick="DashboardMed.confirmDelete('rdv', ${r.id}, 'ce rendez-vous')" title="Supprimer">
-                            <i class="fas fa-trash"></i>
+                            <i class="fas fa-trash"></i>X
                         </button>
                     </div>
                 </td>
@@ -471,6 +478,16 @@ const DashboardMed = (() => {
     };
 
     // ========== CRUD CONSULTATIONS ==========
+    // accees rapide vers prescription
+    const validConsultation =  (id) => {
+        const cons = state.consultations.find(c => c.id === id);
+        if (!cons) return;
+        document.getElementById('prescription-id').value = id;
+        document.getElementById('pres-patient').value = pres.patient_nom || pres.patient || '';
+        document.getElementById('pres-date').value = pres.date || '';
+        showSection('prescriptions');
+        showForm('formPrescription');
+    }         
 
     const editConsultation = (id) => {
         const cons = state.consultations.find(c => c.id === id);
@@ -509,6 +526,15 @@ const DashboardMed = (() => {
     };
 
     // ========== CRUD RENDEZ-VOUS ==========
+    // acces rapide vers rendez vous
+    const validRdv = (id) => {
+        const r = state.appointments.find(x => x.id === id);
+        if (!r) return;
+        document.getElementById('consultation-id').value = id;
+        document.getElementById('cons-patient').value = cons.patient_nom || cons.patient || '';
+        showSection('consultations');
+        showForm('formConsultation');
+    }
 
     const editRdv = (id) => {
         const r = state.appointments.find(x => x.id === id);
@@ -800,6 +826,8 @@ const DashboardMed = (() => {
     return {
         init,
         showSection,
+        validConsultation,
+        validRdv,
         editConsultation,
         editPrescription,
         editRdv,

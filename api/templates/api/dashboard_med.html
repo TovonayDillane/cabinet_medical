@@ -263,6 +263,7 @@
                             <button class="btn-icon-close" id="btn-close-consultation-form"><i class="fas fa-times"></i></button>
                         </div>
                         <form id="formConsultation">
+                            {% csrf_token %}
                             <input type="hidden" id="consultation-id">
                             <div class="form-group">
                                 <label for="cons-patient">Patient *</label>
@@ -340,6 +341,7 @@
                             <button class="btn-icon-close" id="btn-close-prescription-form"><i class="fas fa-times"></i></button>
                         </div>
                         <form id="formPrescription">
+                            {% csrf_token %}
                             <input type="hidden" id="prescription-id">
                             <div class="form-group">
                                 <label for="pres-consultation">Consultation *</label>
@@ -410,6 +412,7 @@
                             <button class="btn-icon-close" id="btn-close-rdv-form"><i class="fas fa-times"></i></button>
                         </div>
                         <form id="formRdv">
+                            {% csrf_token %}
                             <input type="hidden" id="rdv-id">
                             <div class="form-grid-2">
                                 <div class="form-group">
