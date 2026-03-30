@@ -11,6 +11,7 @@ const DashboardMed = (() => {
         endpoints: {
             dashboard: '/dashboard/medecin/',
             patients:  '/patients/',
+            consultations: '/consultations/',
             prescriptions: '/prescriptions/',
             appointments: '/rendezvous/',
             user:      '/user/',
@@ -23,6 +24,8 @@ const DashboardMed = (() => {
         currentSection: 'dashboard',
         patients: [],
         filteredPatients: [],
+        consultations: [],
+        filteredConsultations: [],
         prescriptions: [],
         filteredPrescriptions: [],
         appointments: [],
@@ -123,6 +126,16 @@ const DashboardMed = (() => {
         } catch (e) { console.warn('Patients non chargés'); }
     };
 
+    const loadConsultations = async () => {
+        try {
+            const data = await fetchAPI(config.endpoints.consultations);
+            state.consultations = Array.isArray(data) ? data : (data.results || []);
+            state.filteredConsultations = [...state.consultations];
+            renderConsultationTable();
+            populateConsultationSelect();
+        } catch (e) { console.warn('Consultations non chargées'); }
+    };
+
     const loadPrescriptions = async () => {
         try {
             const data = await fetchAPI(config.endpoints.prescriptions);
@@ -170,6 +183,35 @@ const DashboardMed = (() => {
             <td><span class="status ${p.groupe_sanguin ? 'purple' : ''}">${p.groupe_sanguin || '-'}</span></td>
             <td>${p.allergie ? `<span title="${p.allergie}">⚠ ${p.allergie.substring(0, 20)}${p.allergie.length > 20 ? '…' : ''}</span>` : '-'}</td>
         </tr>`).join('');
+    };
+
+    const renderConsultationTable = () => {
+        const tbody = document.getElementById('consultationTableBody');
+        if (!tbody) return;
+        if (!state.filteredConsultations.length) {
+            tbody.innerHTML = emptyRow(5, 'Aucune consultation enregistrée', 'fa-stethoscope');
+            return;
+        }
+        tbody.innerHTML = state.filteredConsultations.map(cons => {
+            const symptoms = cons.symptome ? cons.symptome.substring(0, 30) + (cons.symptome.length > 30 ? '…' : '') : '-';
+            const diagnostic = cons.diagnostic ? cons.diagnostic.substring(0, 30) + (cons.diagnostic.length > 30 ? '…' : '') : '-';
+            return `<tr>
+                <td>${formatDate(cons.date)}</td>
+                <td><strong>${cons.patient_nom || cons.patient || '-'}</strong></td>
+                <td title="${cons.symptome}">${symptoms}</td>
+                <td title="${cons.diagnostic}">${diagnostic}</td>
+                <td>
+                    <div class="action-btns">
+                        <button class="btn-edit" onclick="DashboardMed.editConsultation(${cons.id})" title="Modifier">
+                            <i class="fas fa-pen"></i>
+                        </button>
+                        <button class="btn-delete" onclick="DashboardMed.confirmDelete('consultation', ${cons.id}, 'cette consultation')" title="Supprimer">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>`;
+        }).join('');
     };
 
     const renderDashboardPatients = () => {
@@ -314,11 +356,23 @@ const DashboardMed = (() => {
             `<option value="${p.nom} ${p.prenom}">`
         ).join('');
         
-        const dl1 = document.getElementById('patients-datalist-pres');
+        const dl1 = document.getElementById('patients-datalist-cons');
         if (dl1) dl1.innerHTML = options;
-        
-        const dl2 = document.getElementById('patients-datalist-rdv');
+
+        const dl2 = document.getElementById('patients-datalist-pres');
         if (dl2) dl2.innerHTML = options;
+        
+        const dl3 = document.getElementById('patients-datalist-rdv');
+        if (dl3) dl3.innerHTML = options;
+    };
+
+    const populateConsultationSelect = () => {
+        const select = document.getElementById('pres-consultation');
+        if (!select) return;
+        const options = state.consultations.map(cons => 
+            `<option value="${cons.id}">${formatDate(cons.date)} - ${cons.patient_nom || cons.patient || '-'}</option>`
+        ).join('');
+        select.innerHTML = options;
     };
 
     // ========== NAVIGATION ==========
@@ -338,7 +392,8 @@ const DashboardMed = (() => {
 
         if (sectionId === 'dashboard')      { loadDashboardData(); loadAppointments(); }
         if (sectionId === 'patients')       loadPatients();
-        if (sectionId === 'prescriptions')  loadPrescriptions();
+        if (sectionId === 'consultations')  loadConsultations();
+        if (sectionId === 'prescriptions')  { loadConsultations(); loadPrescriptions(); }
         if (sectionId === 'appointments')   { loadPatients(); loadAppointments(); }
     };
 
@@ -360,6 +415,12 @@ const DashboardMed = (() => {
         document.getElementById('prescription-form-title').innerHTML = '<i class="fas fa-file-medical"></i> Nouvelle prescription';
         const dateInput = document.getElementById('pres-date');
         if (dateInput) dateInput.value = formatDateInput(new Date());
+    };
+
+    const resetConsultationForm = () => {
+        document.getElementById('consultation-id').value = '';
+        document.getElementById('formConsultation').reset();
+        document.getElementById('consultation-form-title').innerHTML = '<i class="fas fa-stethoscope"></i> Nouvelle consultation';
     };
 
     const resetRdvForm = () => {
@@ -387,9 +448,9 @@ const DashboardMed = (() => {
     const submitPrescriptionForm = async (e) => {
         e.preventDefault();
         const id = document.getElementById('prescription-id').value;
+        const consultationId = document.getElementById('pres-consultation').value;
         const payload = {
-            patient:     document.getElementById('pres-patient').value.trim(),
-            date:        document.getElementById('pres-date').value,
+            consultation: consultationId || null,
             medications: document.getElementById('pres-medications').value.trim(),
             notes:       document.getElementById('pres-notes').value.trim(),
         };
@@ -405,6 +466,44 @@ const DashboardMed = (() => {
             hideForm('prescription-form-container');
             resetPrescriptionForm();
             loadPrescriptions();
+            loadDashboardData();
+        } catch (err) { /* error already shown */ }
+    };
+
+    // ========== CRUD CONSULTATIONS ==========
+
+    const editConsultation = (id) => {
+        const cons = state.consultations.find(c => c.id === id);
+        if (!cons) return;
+        document.getElementById('consultation-id').value = id;
+        document.getElementById('cons-patient').value = cons.patient_nom || cons.patient || '';
+        document.getElementById('cons-symptome').value = cons.symptome || '';
+        document.getElementById('cons-diagnostic').value = cons.diagnostic || '';
+        document.getElementById('consultation-form-title').innerHTML = '<i class="fas fa-pen"></i> Modifier la consultation';
+        showForm('consultation-form-container');
+    };
+
+    const submitConsultationForm = async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('consultation-id').value;
+        const patientValue = document.getElementById('cons-patient').value.trim();
+        const payload = {
+            patient:    patientValue,
+            symptome:   document.getElementById('cons-symptome').value.trim(),
+            diagnostic: document.getElementById('cons-diagnostic').value.trim(),
+        };
+
+        try {
+            if (id) {
+                await fetchAPI(`${config.endpoints.consultations}${id}/`, { method: 'PUT', body: JSON.stringify(payload) });
+                showSuccess('Consultation mise à jour !');
+            } else {
+                await fetchAPI(config.endpoints.consultations, { method: 'POST', body: JSON.stringify(payload) });
+                showSuccess('Consultation créée !');
+            }
+            hideForm('consultation-form-container');
+            resetConsultationForm();
+            loadConsultations();
             loadDashboardData();
         } catch (err) { /* error already shown */ }
     };
@@ -455,6 +554,7 @@ const DashboardMed = (() => {
     const confirmDelete = (type, id, label) => {
         state.deleteTarget = { type, id };
         const textMap = {
+            consultation: `Supprimer ${label} ? Cette action est irréversible.`,
             prescription: `Supprimer ${label} ? Cette action est irréversible.`,
             rdv:          `Supprimer ${label} ?`,
         };
@@ -465,6 +565,7 @@ const DashboardMed = (() => {
     const executeDelete = async () => {
         const { type, id } = state.deleteTarget;
         const endpointMap = {
+            consultation: config.endpoints.consultations,
             prescription: config.endpoints.prescriptions,
             rdv:          config.endpoints.appointments,
         };
@@ -476,6 +577,7 @@ const DashboardMed = (() => {
             showSuccess('Supprimé avec succès !');
             closeDeleteModal();
 
+            if (type === 'consultation') { loadConsultations(); loadDashboardData(); }
             if (type === 'prescription') { loadPrescriptions(); loadDashboardData(); }
             if (type === 'rdv')          { loadAppointments(state.rdvDate); loadDashboardData(); }
         } catch (err) { /* error already shown */ }
@@ -539,11 +641,41 @@ const DashboardMed = (() => {
                     state.filteredPatients = state.patients.filter(p =>
                         `${p.nom} ${p.prenom}`.toLowerCase().includes(term));
                     renderPatientTable();
+                } else if (state.currentSection === 'consultations') {
+                    state.filteredConsultations = state.consultations.filter(cons =>
+                        `${cons.patient_nom || cons.patient}`.toLowerCase().includes(term));
+                    renderConsultationTable();
                 } else if (state.currentSection === 'prescriptions') {
                     state.filteredPrescriptions = state.prescriptions.filter(pres =>
                         `${pres.patient_nom || pres.patient}`.toLowerCase().includes(term));
                     renderPrescriptionTable();
                 }
+            });
+        }
+
+        // === CONSULTATIONS ===
+        const btnAddConsultation = document.getElementById('btn-add-consultation');
+        if (btnAddConsultation) btnAddConsultation.addEventListener('click', () => {
+            resetConsultationForm();
+            showForm('consultation-form-container');
+        });
+
+        const btnCloseConsultationForm = document.getElementById('btn-close-consultation-form');
+        if (btnCloseConsultationForm) btnCloseConsultationForm.addEventListener('click', () => hideForm('consultation-form-container'));
+
+        const btnCancelConsultation = document.getElementById('btn-cancel-consultation');
+        if (btnCancelConsultation) btnCancelConsultation.addEventListener('click', () => { resetConsultationForm(); hideForm('consultation-form-container'); });
+
+        const formConsultation = document.getElementById('formConsultation');
+        if (formConsultation) formConsultation.addEventListener('submit', submitConsultationForm);
+
+        const consultationSearch = document.getElementById('consultation-search');
+        if (consultationSearch) {
+            consultationSearch.addEventListener('input', (e) => {
+                const term = e.target.value.toLowerCase();
+                state.filteredConsultations = state.consultations.filter(cons =>
+                    `${cons.patient_nom || cons.patient}`.toLowerCase().includes(term));
+                renderConsultationTable();
             });
         }
 
@@ -668,6 +800,7 @@ const DashboardMed = (() => {
     return {
         init,
         showSection,
+        editConsultation,
         editPrescription,
         editRdv,
         confirmDelete,

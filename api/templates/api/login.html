@@ -10,8 +10,11 @@
         <p>Connectez-vous à votre cabinet médical</p>
     </div>
 
-    <form id="loginForm" method="POST">
+    <form id="loginForm" method="POST" action="{% url 'login_views' %}">
         {% csrf_token %}
+        {% if next %}
+            <input type="hidden" name="next" value="{{ next }}">
+        {% endif %}
        <div class="form-group">
             <label for="username">Nom d'utilisateur</label>
             <div class="input-wrapper">

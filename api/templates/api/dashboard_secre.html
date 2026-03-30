@@ -227,25 +227,35 @@
                                     <input type="text" id="doc-prenom" class="form-input" placeholder="Prénom" required>
                                 </div>
                                 <div class="form-group">
-                                    <label for="doc-specialite">Spécialité *</label>
-                                    <input type="text" id="doc-specialite" class="form-input" placeholder="Ex: Cardiologie" required>
+                                    <label for="doc-username">Nom d'utilisateur *</label>
+                                    <input type="text" id="doc-username" class="form-input" placeholder="username" required>
                                 </div>
                                 <div class="form-group">
-                                    <label for="doc-telephone">Téléphone</label>
-                                    <input type="tel" id="doc-telephone" class="form-input" placeholder="+261 XX XX XXX XX">
+                                    <label for="doc-password">Mot de passe</label>
+                                    <input type="password" id="doc-password" class="form-input" placeholder="Laisser vide pour ne pas changer">
                                 </div>
                                 <div class="form-group">
                                     <label for="doc-email">Email</label>
                                     <input type="email" id="doc-email" class="form-input" placeholder="email@medecin.mg">
                                 </div>
-                                <div class="form-group">
-                                    <label for="doc-disponibilite">Disponibilité</label>
-                                    <select id="doc-disponibilite" class="form-input">
-                                        <option value="disponible">Disponible</option>
-                                        <option value="indisponible">Indisponible</option>
-                                        <option value="conge">En congé</option>
-                                    </select>
-                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="doc-specialite">Spécialité *</label>
+                                <select id="doc-specialite" class="form-input" required>
+                                    <option value="">-- Sélectionner une spécialité --</option>
+                                    <option value="GINECO">Gynécologue</option>
+                                    <option value="TRAITANT">Médecin traitant</option>
+                                    <option value="DENTISTE">Dentiste</option>
+                                    <option value="PEDIATRE">Pédiatre</option>
+                                    <option value="CARDIOLOGUE">Cardiologue</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="doc-statue">Statut *</label>
+                                <select id="doc-statue" class="form-input" required>
+                                    <option value="DISPONIBLE">Disponible</option>
+                                    <option value="OCCUPE">Occupé</option>
+                                </select>
                             </div>
                             <div class="form-actions">
                                 <button type="submit" class="btn-primary">
@@ -273,15 +283,13 @@
                                     <tr>
                                         <th>Nom complet</th>
                                         <th>Spécialité</th>
-                                        <th>Téléphone</th>
-                                        <th>Email</th>
                                         <th>Statut</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody id="doctorTableBody">
                                     <tr>
-                                        <td colspan="6" class="empty-state">
+                                        <td colspan="4" class="empty-state">
                                             <i class="fas fa-user-md"></i>
                                             <p>Aucun médecin enregistré</p>
                                         </td>
@@ -330,8 +338,8 @@
                                     <label for="pat-sexe">Sexe</label>
                                     <select id="pat-sexe" class="form-input">
                                         <option value="">-- Sélectionner --</option>
-                                        <option value="M">Masculin</option>
-                                        <option value="F">Féminin</option>
+                                        <option value="H">Homme</option>
+                                        <option value="F">Femme</option>
                                     </select>
                                 </div>
                                 <div class="form-group">
@@ -342,14 +350,10 @@
                                     <label for="pat-groupe-sanguin">Groupe sanguin</label>
                                     <select id="pat-groupe-sanguin" class="form-input">
                                         <option value="">-- Sélectionner --</option>
-                                        <option value="A+">A+</option>
-                                        <option value="A-">A-</option>
-                                        <option value="B+">B+</option>
-                                        <option value="B-">B-</option>
-                                        <option value="AB+">AB+</option>
-                                        <option value="AB-">AB-</option>
-                                        <option value="O+">O+</option>
-                                        <option value="O-">O-</option>
+                                        <option value="A">A</option>
+                                        <option value="B">B</option>
+                                        <option value="AB">AB</option>
+                                        <option value="O">O</option>
                                     </select>
                                 </div>
                             </div>
