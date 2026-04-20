@@ -10,6 +10,7 @@
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
+    {% csrf_token %}
     <div id="contenue_principale">
         {% block contenue_principale %}
         {% endblock %}

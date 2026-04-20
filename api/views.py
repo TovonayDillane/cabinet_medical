@@ -8,32 +8,54 @@ from django.views.decorators.cache import never_cache
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
+import logging
+import traceback
+
+logger = logging.getLogger(__name__)
+
+def error_response(message, status=500):
+    """Crée une réponse d'erreur avec logging"""
+    logger.error(message)
+    return JsonResponse({'error': message}, status=status)
 
 # Create your views here.
 
 @never_cache
 def login_views(request):
     if request.method == 'POST':
-        username = request.POST.get('username') 
-        mdp = request.POST.get("password")
-        if username:
-            user = authenticate(request, username=username, password=mdp)  # ✅ username au lieu de email
-            if user is not None:
-                login(request, user)
-                # Récupérer l'URL de redirection depuis le paramètre 'next'
-                next_url = request.POST.get('next') or request.GET.get('next')
-                if next_url:
-                    return redirect(next_url)
-                # Sinon, rediriger selon le type d'utilisateur
-                if hasattr(user, 'profil_medecin'):
-                    return redirect('dashboard_med')
-                elif hasattr(user, 'profil_secretaire'):
-                    return redirect('dashboard_secre')
-                else:
-                    return redirect('/admin')
+        username = request.POST.get('username', '').strip()
+        mdp = request.POST.get("password", "")
+        
+        if not username:
+            messages.error(request, "Veuillez entrer votre nom d'utilisateur")
+        elif not mdp:
+            messages.error(request, "Veuillez entrer votre mot de passe")
+        else:
+            # Vérifier si l'utilisateur existe
+            user_exists = User.objects.filter(username=username).exists()
+            
+            if not user_exists:
+                messages.error(request, "Cet utilisateur n'existe pas. Veuillez vérifier votre nom d'utilisateur.")
             else:
-                messages.error(request, "Mot de passe incorrect ou utilisateur invalide")
+                # L'utilisateur existe, vérifier le mot de passe
+                user = authenticate(request, username=username, password=mdp)
+                if user is not None:
+                    login(request, user)
+                    # Récupérer l'URL de redirection depuis le paramètre 'next'
+                    next_url = request.POST.get('next') or request.GET.get('next')
+                    if next_url:
+                        return redirect(next_url)
+                    # Sinon, rediriger selon le type d'utilisateur
+                    if hasattr(user, 'profil_medecin'):
+                        return redirect('dashboard_med')
+                    elif hasattr(user, 'profil_secretaire'):
+                        return redirect('dashboard_secre')
+                    else:
+                        return redirect('/admin')
+                else:
+                    messages.error(request, "Mot de passe incorrect. Veuillez réessayer.")
+    
     # Récupérer le paramètre 'next' pour le passer au template
     next_url = request.GET.get('next', '')
     context = {'next': next_url}
@@ -190,21 +212,45 @@ def medecin_detail_api(request, pk):
             
             # Mettre à jour l'utilisateur
             if 'user_first_name' in data:
-                user.first_name = data.get('user_first_name', '').strip()
+                fname = data.get('user_first_name', '').strip()
+                if fname and len(fname) <= 150:
+                    user.first_name = fname
+                elif fname and len(fname) > 150:
+                    return JsonResponse({'error': 'Prénom trop long (max 150 caractères)'}, status=400)
             if 'user_last_name' in data:
-                user.last_name = data.get('user_last_name', '').strip()
+                lname = data.get('user_last_name', '').strip()
+                if lname and len(lname) <= 150:
+                    user.last_name = lname
+                elif lname and len(lname) > 150:
+                    return JsonResponse({'error': 'Nom trop long (max 150 caractères)'}, status=400)
             if 'user_email' in data:
-                user.email = data.get('user_email', '').strip()
+                email = data.get('user_email', '').strip()
+                if email:
+                    # Vérifier que l'email n'existe pas déjà
+                    if User.objects.filter(email=email).exclude(pk=user.id).exists():
+                        return JsonResponse({'error': 'Cet email est déjà utilisé'}, status=400)
+                    user.email = email
             if 'user_password' in data and data.get('user_password', '').strip():
-                user.set_password(data.get('user_password'))
+                pwd = data.get('user_password', '').strip()
+                if len(pwd) < 8:
+                    return JsonResponse({'error': 'Le mot de passe doit avoir au moins 8 caractères'}, status=400)
+                user.set_password(pwd)
             
             user.save()
             
             # Mettre à jour le médecin
             if 'specialite' in data:
-                medecin.specialite = data.get('specialite', '').strip()
+                spec = data.get('specialite', '').strip()
+                if spec and spec in dict(Medecin.SPECIALISTE_CHOICES):
+                    medecin.specialite = spec
+                else:
+                    return JsonResponse({'error': 'Spécialité invalide'}, status=400)
             if 'statue' in data:
-                medecin.statue = data.get('statue', medecin.statue)
+                statue = data.get('statue', '').strip()
+                if statue and statue in dict(Medecin.STATUE_CHOICES):
+                    medecin.statue = statue
+                else:
+                    return JsonResponse({'error': 'Statut invalide'}, status=400)
             
             medecin.save()
             
@@ -238,17 +284,27 @@ def medecin_detail_api(request, pk):
 @login_required(login_url='login_views')
 @require_http_methods(["GET", "POST"])
 def patients_list_api(request):
-    """Liste tous les patients ou crée un nouveau patient"""
+    """Liste les patients (filtrés par médecin si l'utilisateur est médecin)"""
     if request.method == 'GET':
-        from .models import Patient
+        from .models import Patient, RendezVous, Consultation
+        from django.db.models import Q
+        
         patients = Patient.objects.all()
+        
+        # Filtrer par médecin si l'utilisateur est un médecin
+        medecin = Medecin.objects.filter(user=request.user).first()
+        if medecin:
+            # Afficher seulement les patients ayant un RDV ou une consultation avec ce médecin
+            patients = patients.filter(
+                Q(rendezvous__medecin=medecin) | Q(consultation__medecin=medecin)
+            ).distinct()
         data = []
         for patient in patients:
             data.append({
                 'id': patient.id,
                 'nom': patient.nom,
                 'prenom': patient.prenom,
-                'date_naissance': patient.date_naissance,
+                'date_naissance': patient.date_naissance.isoformat() if patient.date_naissance else None,
                 'sexe': patient.sexe,
                 'telephone': patient.telephone,
                 'adresse': patient.adresse,
@@ -277,7 +333,7 @@ def patients_list_api(request):
                 'id': patient.id,
                 'nom': patient.nom,
                 'prenom': patient.prenom,
-                'date_naissance': patient.date_naissance,
+                'date_naissance': patient.date_naissance.isoformat() if patient.date_naissance else None,
                 'sexe': patient.sexe,
                 'telephone': patient.telephone,
                 'adresse': patient.adresse,
@@ -304,7 +360,7 @@ def patient_detail_api(request, pk):
             'id': patient.id,
             'nom': patient.nom,
             'prenom': patient.prenom,
-            'date_naissance': patient.date_naissance,
+            'date_naissance': patient.date_naissance.isoformat() if patient.date_naissance else None,
             'sexe': patient.sexe,
             'telephone': patient.telephone,
             'adresse': patient.adresse,
@@ -321,15 +377,28 @@ def patient_detail_api(request, pk):
             if 'prenom' in data:
                 patient.prenom = data.get('prenom', '').strip()
             if 'date_naissance' in data:
-                patient.date_naissance = data.get('date_naissance')
+                date_value = data.get('date_naissance', '').strip()
+                if date_value:
+                    try:
+                        patient.date_naissance = datetime.strptime(date_value, '%Y-%m-%d').date()
+                    except ValueError:
+                        return JsonResponse({'error': 'Format date invalide (YYYY-MM-DD)'}, status=400)
             if 'sexe' in data:
-                patient.sexe = data.get('sexe', '').strip()
+                sexe_value = data.get('sexe', '').strip()
+                if sexe_value and sexe_value in dict(Patient.SEXE_CHOICES):
+                    patient.sexe = sexe_value
+                else:
+                    return JsonResponse({'error': 'Sexe invalide. Valeurs: H, F'}, status=400)
             if 'telephone' in data:
                 patient.telephone = data.get('telephone', '').strip()
             if 'adresse' in data:
                 patient.adresse = data.get('adresse', '').strip()
             if 'groupe_sanguin' in data:
-                patient.groupe_sanguin = data.get('groupe_sanguin', '').strip()
+                groupe_value = data.get('groupe_sanguin', '').strip()
+                if groupe_value and groupe_value in dict(Patient.GROUPE_SANGUIN_CHOICES):
+                    patient.groupe_sanguin = groupe_value
+                else:
+                    return JsonResponse({'error': 'Groupe sanguin invalide. Valeurs: A, B, O, AB'}, status=400)
             if 'allergie' in data:
                 patient.allergie = data.get('allergie', '').strip()
             
@@ -339,7 +408,7 @@ def patient_detail_api(request, pk):
                 'id': patient.id,
                 'nom': patient.nom,
                 'prenom': patient.prenom,
-                'date_naissance': patient.date_naissance,
+                'date_naissance': patient.date_naissance.isoformat() if patient.date_naissance else None,
                 'sexe': patient.sexe,
                 'telephone': patient.telephone,
                 'adresse': patient.adresse,
@@ -377,11 +446,16 @@ def user_profile_api(request):
 @login_required(login_url='login_views')
 @require_http_methods(["GET", "POST"])
 def consultations_list_api(request):
-    """Liste toutes les consultations ou crée une nouvelle"""
+    """Liste les consultations (filtrées par médecin si l'utilisateur est médecin)"""
     from .models import Consultation, Patient
     
     if request.method == 'GET':
         consultations = Consultation.objects.all().select_related('patient', 'medecin')
+        
+        # Filtrer par médecin si l'utilisateur est un médecin
+        medecin = Medecin.objects.filter(user=request.user).first()
+        if medecin:
+            consultations = consultations.filter(medecin=medecin)
         data = []
         for cons in consultations:
             data.append({
@@ -390,7 +464,7 @@ def consultations_list_api(request):
                 'patient_nom': f"{cons.patient.nom} {cons.patient.prenom}",
                 'medecin': cons.medecin.id,
                 'medecin_nom': f"Dr. {cons.medecin.user.first_name} {cons.medecin.user.last_name}",
-                'date': cons.date.isoformat(),
+                'date': cons.date.isoformat() if cons.date else None,
                 'symptome': cons.symptome,
                 'diagnostic': cons.diagnostic,
             })
@@ -398,14 +472,19 @@ def consultations_list_api(request):
     
     elif request.method == 'POST':
         try:
+            logger.debug(f"POST Consultation reçu de {request.user}")
             data = json.loads(request.body)
+            logger.debug(f"Données reçues: {data}")
             
             # Récupérer le patient et le médecin
             patient_name = data.get('patient', '').strip().split()
             medecin = Medecin.objects.filter(user=request.user).first()
             
+            logger.debug(f"Nom du patient: {patient_name}, Médecin: {medecin}")
+            
             if not patient_name or not medecin:
-                return JsonResponse({'error': 'Données invalides'}, status=400)
+                logger.error(f"Données invalides - patient_name: {patient_name}, medecin: {medecin}")
+                return JsonResponse({'error': 'Données invalides: patient ou médecin manquant'}, status=400)
             
             # Trouver le patient par nom
             from django.db.models import Q
@@ -414,7 +493,10 @@ def consultations_list_api(request):
             ).first()
             
             if not patient:
-                return JsonResponse({'error': 'Patient non trouvé'}, status=404)
+                logger.error(f"Patient '{patient_name[0]}' non trouvé")
+                available_patients = Patient.objects.values_list('nom', 'prenom')
+                logger.debug(f"Patients disponibles: {list(available_patients)}")
+                return JsonResponse({'error': f'Patient \'{patient_name[0]}\' non trouvé'}, status=404)
             
             consultation = Consultation.objects.create(
                 patient=patient,
@@ -422,6 +504,7 @@ def consultations_list_api(request):
                 symptome=data.get('symptome', '').strip(),
                 diagnostic=data.get('diagnostic', '').strip(),
             )
+            logger.debug(f"Consultation créée: {consultation.id}")
             
             return JsonResponse({
                 'id': consultation.id,
@@ -429,14 +512,16 @@ def consultations_list_api(request):
                 'patient_nom': f"{patient.nom} {patient.prenom}",
                 'medecin': medecin.id,
                 'medecin_nom': f"Dr. {medecin.user.first_name} {medecin.user.last_name}",
-                'date': consultation.date.isoformat(),
+                'date': consultation.date.isoformat() if consultation.date else None,
                 'symptome': consultation.symptome,
                 'diagnostic': consultation.diagnostic,
             }, status=201)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON invalide: {e}")
             return JsonResponse({'error': 'JSON invalide'}, status=400)
         except Exception as e:
-            return JsonResponse({'error': str(e)}, status=500)
+            logger.error(f"Erreur consultation POST: {str(e)}\n{traceback.format_exc()}")
+            return JsonResponse({'error': f'Erreur serveur: {str(e)}'}, status=500)
 
 @login_required(login_url='login_views')
 @require_http_methods(["GET", "PUT", "DELETE"])
@@ -456,7 +541,7 @@ def consultation_detail_api(request, pk):
             'patient_nom': f"{consultation.patient.nom} {consultation.patient.prenom}",
             'medecin': consultation.medecin.id,
             'medecin_nom': f"Dr. {consultation.medecin.user.first_name} {consultation.medecin.user.last_name}",
-            'date': consultation.date.isoformat(),
+            'date': consultation.date.isoformat() if consultation.date else None,
             'symptome': consultation.symptome,
             'diagnostic': consultation.diagnostic,
         })
@@ -466,9 +551,17 @@ def consultation_detail_api(request, pk):
             data = json.loads(request.body)
             
             if 'symptome' in data:
-                consultation.symptome = data.get('symptome', '').strip()
+                symptome = data.get('symptome', '').strip()
+                if symptome:
+                    consultation.symptome = symptome
+                else:
+                    return JsonResponse({'error': 'Symptôme ne peut pas être vide'}, status=400)
             if 'diagnostic' in data:
-                consultation.diagnostic = data.get('diagnostic', '').strip()
+                diagnostic = data.get('diagnostic', '').strip()
+                if diagnostic:
+                    consultation.diagnostic = diagnostic
+                else:
+                    return JsonResponse({'error': 'Diagnostic ne peut pas être vide'}, status=400)
             
             consultation.save()
             
@@ -478,7 +571,7 @@ def consultation_detail_api(request, pk):
                 'patient_nom': f"{consultation.patient.nom} {consultation.patient.prenom}",
                 'medecin': consultation.medecin.id,
                 'medecin_nom': f"Dr. {consultation.medecin.user.first_name} {consultation.medecin.user.last_name}",
-                'date': consultation.date.isoformat(),
+                'date': consultation.date.isoformat() if consultation.date else None,
                 'symptome': consultation.symptome,
                 'diagnostic': consultation.diagnostic,
             })
@@ -496,20 +589,30 @@ def consultation_detail_api(request, pk):
 @login_required(login_url='login_views')
 @require_http_methods(["GET", "POST"])
 def prescriptions_list_api(request):
-    """Liste toutes les prescriptions ou crée une nouvelle"""
+    """Liste les prescriptions (filtrées par médecin si l'utilisateur est médecin)"""
     from .models import Prescription, Consultation
     
     if request.method == 'GET':
-        prescriptions = Prescription.objects.all().select_related('consultation', 'consultation__patient')
+        prescriptions = Prescription.objects.all().select_related('consultation', 'consultation__patient', 'consultation__medecin')
+        
+        # Filtrer par médecin si l'utilisateur est un médecin
+        medecin = Medecin.objects.filter(user=request.user).first()
+        if medecin:
+            prescriptions = prescriptions.filter(consultation__medecin=medecin)
         data = []
         for pres in prescriptions:
+            consul_date = pres.consultation.date.isoformat() if pres.consultation and pres.consultation.date else None
+            medecin_name = f"Dr. {pres.consultation.medecin.user.first_name} {pres.consultation.medecin.user.last_name}" if pres.consultation and pres.consultation.medecin else '-'
             data.append({
                 'id': pres.id,
-                'consultation': pres.consultation.id,
-                'consultation_date': pres.consultation.date.isoformat() if pres.consultation else None,
+                'consultation': pres.consultation.id if pres.consultation else None,
+                'consultation_date': consul_date,
                 'patient_nom': f"{pres.consultation.patient.nom} {pres.consultation.patient.prenom}" if pres.consultation else '-',
+                'medecin_nom': medecin_name,
                 'medications': pres.medicaments,
-                'date': pres.consultation.date.isoformat() if pres.consultation else None,
+                'symptome': pres.consultation.symptome if pres.consultation else '',
+                'diagnostic': pres.consultation.diagnostic if pres.consultation else '',
+                'date': consul_date,
                 'notes': '',
             })
         return JsonResponse(data, safe=False)
@@ -533,19 +636,25 @@ def prescriptions_list_api(request):
                 medicaments=data.get('medications', '').strip(),
             )
             
+            medecin_name = f"Dr. {consultation.medecin.user.first_name} {consultation.medecin.user.last_name}" if consultation.medecin else '-'
             return JsonResponse({
                 'id': prescription.id,
                 'consultation': consultation.id,
-                'consultation_date': consultation.date.isoformat(),
+                'consultation_date': consultation.date.isoformat() if consultation.date else None,
                 'patient_nom': f"{consultation.patient.nom} {consultation.patient.prenom}",
+                'medecin_nom': medecin_name,
                 'medications': prescription.medicaments,
-                'date': consultation.date.isoformat(),
+                'symptome': consultation.symptome,
+                'diagnostic': consultation.diagnostic,
+                'date': consultation.date.isoformat() if consultation.date else None,
                 'notes': '',
             }, status=201)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON invalide dans prescription POST: {e}")
             return JsonResponse({'error': 'JSON invalide'}, status=400)
         except Exception as e:
-            return JsonResponse({'error': str(e)}, status=500)
+            logger.error(f"Erreur prescription POST: {str(e)}\n{traceback.format_exc()}")
+            return JsonResponse({'error': f'Erreur serveur: {str(e)}'}, status=500)
 
 @login_required(login_url='login_views')
 @require_http_methods(["GET", "PUT", "DELETE"])
@@ -559,13 +668,17 @@ def prescription_detail_api(request, pk):
         return JsonResponse({'error': 'Prescription non trouvée'}, status=404)
     
     if request.method == 'GET':
+        medecin_name = f"Dr. {prescription.consultation.medecin.user.first_name} {prescription.consultation.medecin.user.last_name}" if prescription.consultation and prescription.consultation.medecin else '-'
         return JsonResponse({
             'id': prescription.id,
             'consultation': prescription.consultation.id,
-            'consultation_date': prescription.consultation.date.isoformat(),
-            'patient_nom': f"{prescription.consultation.patient.nom} {prescription.consultation.patient.prenom}",
+            'consultation_date': prescription.consultation.date.isoformat() if prescription.consultation and prescription.consultation.date else None,
+            'patient_nom': f"{prescription.consultation.patient.nom} {prescription.consultation.patient.prenom}" if prescription.consultation else '-',
+            'medecin_nom': medecin_name,
             'medications': prescription.medicaments,
-            'date': prescription.consultation.date.isoformat(),
+            'symptome': prescription.consultation.symptome if prescription.consultation else '',
+            'diagnostic': prescription.consultation.diagnostic if prescription.consultation else '',
+            'date': prescription.consultation.date.isoformat() if prescription.consultation and prescription.consultation.date else None,
             'notes': '',
         })
     
@@ -574,17 +687,25 @@ def prescription_detail_api(request, pk):
             data = json.loads(request.body)
             
             if 'medications' in data:
-                prescription.medicaments = data.get('medications', '').strip()
+                medications = data.get('medications', '').strip()
+                if medications:
+                    prescription.medicaments = medications
+                else:
+                    return JsonResponse({'error': 'Médicaments ne peuvent pas être vides'}, status=400)
             
             prescription.save()
             
+            medecin_name = f"Dr. {prescription.consultation.medecin.user.first_name} {prescription.consultation.medecin.user.last_name}" if prescription.consultation and prescription.consultation.medecin else '-'
             return JsonResponse({
                 'id': prescription.id,
                 'consultation': prescription.consultation.id,
-                'consultation_date': prescription.consultation.date.isoformat(),
-                'patient_nom': f"{prescription.consultation.patient.nom} {prescription.consultation.patient.prenom}",
+                'consultation_date': prescription.consultation.date.isoformat() if prescription.consultation and prescription.consultation.date else None,
+                'patient_nom': f"{prescription.consultation.patient.nom} {prescription.consultation.patient.prenom}" if prescription.consultation else '-',
+                'medecin_nom': medecin_name,
                 'medications': prescription.medicaments,
-                'date': prescription.consultation.date.isoformat(),
+                'symptome': prescription.consultation.symptome if prescription.consultation else '',
+                'diagnostic': prescription.consultation.diagnostic if prescription.consultation else '',
+                'date': prescription.consultation.date.isoformat() if prescription.consultation and prescription.consultation.date else None,
                 'notes': '',
             })
         except json.JSONDecodeError:
@@ -601,13 +722,18 @@ def prescription_detail_api(request, pk):
 @login_required(login_url='login_views')
 @require_http_methods(["GET", "POST"])
 def rendezvous_list_api(request):
-    """Liste tous les rendez-vous ou crée un nouveau"""
+    """Liste les rendez-vous (filtrés par médecin si l'utilisateur est médecin)"""
     from .models import RendezVous, Patient
     from django.utils import timezone
     
     if request.method == 'GET':
         date_filter = request.GET.get('date')
         rdvs = RendezVous.objects.all().select_related('patient', 'medecin')
+        
+        # Filtrer par médecin si l'utilisateur est un médecin
+        medecin = Medecin.objects.filter(user=request.user).first()
+        if medecin:
+            rdvs = rdvs.filter(medecin=medecin)
         
         if date_filter:
             rdvs = rdvs.filter(date=date_filter)
@@ -621,9 +747,9 @@ def rendezvous_list_api(request):
                 'medecin': rdv.medecin.id,
                 'medecin_nom': f"Dr. {rdv.medecin.user.first_name} {rdv.medecin.user.last_name}",
                 'date': rdv.date.isoformat() if rdv.date else None,
-                'heure': rdv.heure,
-                'motif': getattr(rdv, 'motif', ''),
-                'statut': getattr(rdv, 'statut', 'attente'),
+                'heure': rdv.heure.strftime('%H:%M') if rdv.heure else None,
+                'motif': rdv.motif,
+                'statut': rdv.statut,
             })
         return JsonResponse(data, safe=False)
     
@@ -632,10 +758,20 @@ def rendezvous_list_api(request):
             data = json.loads(request.body)
             
             patient_name = data.get('patient', '').strip().split()
-            medecin = Medecin.objects.filter(user=request.user).first()
+            medecin_id = data.get('medecin')
             
-            if not patient_name or not medecin:
-                return JsonResponse({'error': 'Données invalides'}, status=400)
+            if not patient_name:
+                return JsonResponse({'error': 'Patient requis'}, status=400)
+            
+            # Déterminer le médecin
+            medecin = Medecin.objects.filter(user=request.user).first()
+            if not medecin:
+                if not medecin_id:
+                    return JsonResponse({'error': 'Médecin requis'}, status=400)
+                try:
+                    medecin = Medecin.objects.get(pk=medecin_id)
+                except Medecin.DoesNotExist:
+                    return JsonResponse({'error': 'Médecin non trouvé'}, status=404)
             
             from django.db.models import Q
             patient = Patient.objects.filter(
@@ -645,31 +781,45 @@ def rendezvous_list_api(request):
             if not patient:
                 return JsonResponse({'error': 'Patient non trouvé'}, status=404)
             
-            # donné necessaire pour le teste de lheure de rendez-vous
-            marge_time = timedelta(minutes=10)
-            heure = datetime.strptime(data.get('heure', ''))
-            heure_min = (heure - marge_time).time()
-            heure_max = (heure + marge_time).time()
+            # Valider la date et l'heure
+            heure_value = str(data.get('heure', '')).strip()
+            date_value = str(data.get('date', '')).strip()
             
-            #tester si un rendez vous est entre la date et lheure donne avec une marge de 2mn
-            collusion = RendezVous.objects.filter(
-                medecin = medecin,
-                date = data.get('date'),
-                heure__range = (heure_min, heure_max)
+            if not heure_value:
+                return JsonResponse({'error': 'Heure requise'}, status=400)
+            if not date_value:
+                return JsonResponse({'error': 'Date requise'}, status=400)
+            
+            try:
+                heure = datetime.strptime(heure_value, '%H:%M').time()
+                # Vérifier que la date est au bon format
+                date_obj = datetime.strptime(date_value, '%Y-%m-%d').date()
+            except ValueError as ve:
+                logger.error(f"Erreur conversion date/heure: {ve}")
+                return JsonResponse({'error': 'Format date invalide (YYYY-MM-DD) ou heure invalide (HH:MM)'}, status=400)
+            
+            # Tester si un rendez-vous existe déjà à cette heure
+            marge_time = timedelta(minutes=10)
+            heure_min = (datetime.combine(date.today(), heure) - marge_time).time()
+            heure_max = (datetime.combine(date.today(), heure) + marge_time).time()
+            
+            collision = RendezVous.objects.filter(
+                medecin=medecin,
+                date=date_obj,
+                heure__range=(heure_min, heure_max)
             ).exists()
 
-            if not collusion:
-                rdv = RendezVous.objects.create(
-                    patient=patient,
-                    medecin=medecin,
-                    date=data.get('date'),
-                    heure=data.get('heure', ''),
-                    motif=data.get('motif', ''),
-                    statut=data.get('statut', 'attente'),
-                )
-            else:
-                return JsonResponse({ 'le medecin est deja occupe a cette heure'}, status= 400)
-                #fin du changement de code    
+            if collision:
+                return JsonResponse({'error': 'Le médecin est déjà occupé à cette heure'}, status=400)
+            
+            rdv = RendezVous.objects.create(
+                patient=patient,
+                medecin=medecin,
+                date=date_obj,
+                heure=heure,
+                motif=data.get('motif', '').strip(),
+                statut=data.get('statut', 'attente'),
+            )
 
             return JsonResponse({
                 'id': rdv.id,
@@ -678,20 +828,21 @@ def rendezvous_list_api(request):
                 'medecin': medecin.id,
                 'medecin_nom': f"Dr. {medecin.user.first_name} {medecin.user.last_name}",
                 'date': rdv.date.isoformat() if rdv.date else None,
-                'heure': rdv.heure,
+                'heure': rdv.heure.strftime('%H:%M') if rdv.heure else None,
                 'motif': rdv.motif,
                 'statut': rdv.statut,
             }, status=201)
         except json.JSONDecodeError:
             return JsonResponse({'error': 'JSON invalide'}, status=400)
         except Exception as e:
-            return JsonResponse({'error': str(e)}, status=500)
+            logger.error(f"Erreur création RDV: {str(e)}", exc_info=True)
+            return JsonResponse({'error': f'Erreur serveur: {str(e)}'}, status=500)
 
 @login_required(login_url='login_views')
 @require_http_methods(["GET", "PUT", "DELETE"])
 def rendezvous_detail_api(request, pk):
     """Récupère, modifie ou supprime un rendez-vous"""
-    from .models import RendezVous
+    from .models import RendezVous, Patient
     
     try:
         rdv = RendezVous.objects.get(pk=pk)
@@ -706,7 +857,7 @@ def rendezvous_detail_api(request, pk):
             'medecin': rdv.medecin.id,
             'medecin_nom': f"Dr. {rdv.medecin.user.first_name} {rdv.medecin.user.last_name}",
             'date': rdv.date.isoformat() if rdv.date else None,
-            'heure': rdv.heure,
+            'heure': rdv.heure.strftime('%H:%M') if rdv.heure else None,
             'motif': getattr(rdv, 'motif', ''),
             'statut': getattr(rdv, 'statut', 'attente'),
         })
@@ -715,14 +866,80 @@ def rendezvous_detail_api(request, pk):
         try:
             data = json.loads(request.body)
             
-            if 'date' in data:
-                rdv.date = data.get('date')
-            if 'heure' in data:
-                rdv.heure = data.get('heure', '')
+            # Vérifier les permissions - le médecin ne peut modifier que ses propres RDV
+            # Les secrétaires peuvent modifier tous les RDV
+            medecin_connecte = Medecin.objects.filter(user=request.user).first()
+            if medecin_connecte and rdv.medecin != medecin_connecte:
+                return JsonResponse({'error': 'Vous ne pouvez modifier que vos propres rendez-vous'}, status=403)
+            
+            # Mettre à jour le patient si fourni
+            if 'patient' in data:
+                patient_name = str(data.get('patient', '')).strip().split()
+                if patient_name:
+                    from django.db.models import Q
+                    patient = Patient.objects.filter(
+                        Q(nom=patient_name[0]) if len(patient_name) > 0 else Q(nom='')
+                    ).first()
+                    if patient:
+                        rdv.patient = patient
+                    else:
+                        return JsonResponse({'error': 'Patient non trouvé'}, status=404)
+            
+            # Mettre à jour la date et vérifier les collisions
+            if 'date' in data or 'heure' in data:
+                nouvelle_date = rdv.date
+                nouvelle_heure = rdv.heure
+                
+                # Valider et convertir la date si fournie
+                if 'date' in data:
+                    date_value = str(data.get('date', '')).strip()
+                    if not date_value:
+                        return JsonResponse({'error': 'Date ne peut pas être vide'}, status=400)
+                    try:
+                        nouvelle_date = datetime.strptime(date_value, '%Y-%m-%d').date()
+                    except ValueError:
+                        return JsonResponse({'error': 'Format date invalide (YYYY-MM-DD)'}, status=400)
+                
+                # Valider et convertir l'heure en objet time si elle est fournie
+                if 'heure' in data:
+                    heure_value = str(data.get('heure', '')).strip()
+                    if not heure_value:
+                        return JsonResponse({'error': 'Heure ne peut pas être vide'}, status=400)
+                    try:
+                        nouvelle_heure = datetime.strptime(heure_value, '%H:%M').time()
+                    except ValueError:
+                        return JsonResponse({'error': 'Format heure invalide (HH:MM)'}, status=400)
+                
+                # Vérifier que date et heure ne sont pas None avant de vérifier les collisions
+                if nouvelle_date is None:
+                    return JsonResponse({'error': 'Date invalide ou manquante'}, status=400)
+                if nouvelle_heure is None:
+                    return JsonResponse({'error': 'Heure invalide ou manquante'}, status=400)
+                
+                # Vérifier les collisions avec la nouvelle date/heure
+                marge_time = timedelta(minutes=10)
+                heure_min = (datetime.combine(nouvelle_date, nouvelle_heure) - marge_time).time()
+                heure_max = (datetime.combine(nouvelle_date, nouvelle_heure) + marge_time).time()
+                
+                collision = RendezVous.objects.filter(
+                    medecin=rdv.medecin,
+                    date=nouvelle_date,
+                    heure__range=(heure_min, heure_max)
+                ).exclude(pk=rdv.pk).exists()
+                
+                if collision:
+                    return JsonResponse({'error': 'Le médecin est déjà occupé à cette heure'}, status=400)
+                
+                rdv.date = nouvelle_date
+                rdv.heure = nouvelle_heure
+            
             if 'motif' in data:
-                rdv.motif = data.get('motif', '')
+                rdv.motif = str(data.get('motif', ''))
             if 'statut' in data:
-                rdv.statut = data.get('statut', 'attente')
+                statut_value = str(data.get('statut', '')).strip()
+                # Accepter any statut string
+                if statut_value:
+                    rdv.statut = statut_value
             
             rdv.save()
             
@@ -733,15 +950,29 @@ def rendezvous_detail_api(request, pk):
                 'medecin': rdv.medecin.id,
                 'medecin_nom': f"Dr. {rdv.medecin.user.first_name} {rdv.medecin.user.last_name}",
                 'date': rdv.date.isoformat() if rdv.date else None,
-                'heure': rdv.heure,
+                'heure': rdv.heure.strftime('%H:%M') if rdv.heure else None,
                 'motif': rdv.motif,
                 'statut': rdv.statut,
             })
         except json.JSONDecodeError:
             return JsonResponse({'error': 'JSON invalide'}, status=400)
         except Exception as e:
-            return JsonResponse({'error': str(e)}, status=500)
+            logger.error(f"Erreur modification RDV: {str(e)}", exc_info=True)
+            return JsonResponse({'error': f'Erreur serveur: {str(e)}'}, status=500)
     
     elif request.method == 'DELETE':
-        rdv.delete()
-        return JsonResponse({'message': 'Rendez-vous supprimé'}, status=204)
+        try:
+            # Vérifier les permissions - le médecin ne peut supprimer que ses propres RDV
+            # Les secrétaires peuvent supprimer tous les RDV
+            medecin_connecte = Medecin.objects.filter(user=request.user).first()
+            if medecin_connecte and rdv.medecin != medecin_connecte:
+                return JsonResponse({'error': 'Vous ne pouvez supprimer que vos propres rendez-vous'}, status=403)
+            secretaire_connecte = Secretaire.objects.filter(user=request.user).first()
+            if not medecin_connecte and not secretaire_connecte:
+                return JsonResponse({'error': 'Accès non autorisé'}, status=403)
+            
+            rdv.delete()
+            return JsonResponse({'message': 'Rendez-vous supprimé'}, status=204)
+        except Exception as e:
+            logger.error(f"Erreur suppression RDV: {str(e)}", exc_info=True)
+            return JsonResponse({'error': f'Erreur serveur: {str(e)}'}, status=500)

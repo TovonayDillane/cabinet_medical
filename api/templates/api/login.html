@@ -10,6 +10,18 @@
         <p>Connectez-vous à votre cabinet médical</p>
     </div>
 
+    <!-- Affichage des messages d'erreur dans la carte -->
+    {% if messages %}
+    <div style="margin-bottom: 20px;">
+        {% for message in messages %}
+        <div class="login-alert login-alert-{{ message.tags|default:'info' }}">
+            <i class="alert-icon">{% if message.tags == 'error' %}✕{% elif message.tags == 'success' %}✓{% else %}⚠{% endif %}</i>
+            <span>{{ message }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
     <form id="loginForm" method="POST" action="{% url 'login_views' %}">
         {% csrf_token %}
         {% if next %}
@@ -19,7 +31,7 @@
             <label for="username">Nom d'utilisateur</label>
             <div class="input-wrapper">
                 <i data-lucide="user" class="prefix-icon"></i>
-                <input type="text" id="username" name="username" placeholder="Martin" required>
+                <input type="text" id="username" name="username" placeholder="Entrez votre nom d'utilisateur" required>
             </div>
         </div>
 
@@ -38,7 +50,7 @@
             <a href="#" class="forgot-link">Oublié ?</a>
         </div>
 
-        <button type="submit" class="submit-btn" id="submitBtn" onclick="this.innerHTML='Connexion...';">
+        <button type="submit" class="submit-btn" id="submitBtn">
             <span id="btnText">Se connecter</span>
             <div class="loader" id="loader"></div>
             <i data-lucide="arrow-right" id="arrowIcon"></i>
@@ -49,4 +61,56 @@
         <p>Besoin d'assistance ? <a href="https://wa.me/261382259316?text=Bonjour%2C%20j'ai%20besoin%20d'assistance" style="color: var(--primary); text-decoration:none;">Contactez le support</a></p>
     </div>
 </div>
+
+<style>
+    .login-alert {
+        padding: 14px 16px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 0.9rem;
+        font-weight: 500;
+        margin-bottom: 10px;
+        animation: slideDown 0.4s ease-out;
+        border: 1px solid;
+    }
+
+    .login-alert-error {
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(220, 38, 38, 0.08) 100%);
+        color: #991b1b;
+        border-color: rgba(239, 68, 68, 0.4);
+    }
+
+    .login-alert-success {
+        background: linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(22, 163, 74, 0.08) 100%);
+        color: #166534;
+        border-color: rgba(34, 197, 94, 0.4);
+    }
+
+    .login-alert-warning {
+        background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(217, 119, 6, 0.08) 100%);
+        color: #92400e;
+        border-color: rgba(245, 158, 11, 0.4);
+    }
+
+    .login-alert .alert-icon {
+        font-size: 1.2rem;
+        flex-shrink: 0;
+        font-weight: 600;
+    }
+
+    .login-alert-error .alert-icon {
+        color: #dc2626;
+    }
+
+    .login-alert-success .alert-icon {
+        color: #22c55e;
+    }
+
+    .login-alert-warning .alert-icon {
+        color: #f59e0b;
+    }
+</style>
+
 {% endblock %}

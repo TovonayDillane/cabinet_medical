@@ -69,6 +69,30 @@ const DashboardMed = (() => {
     const showError = (msg) => showToast(msg, 'error');
     const showSuccess = (msg) => showToast(msg, 'success');
 
+    // ========== CSRF TOKEN HELPER ==========
+
+    const getCsrfToken = () => {
+        // Try to get from DOM first
+        const tokenElement = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (tokenElement && tokenElement.value) {
+            return tokenElement.value;
+        }
+        // Fallback: extract from cookies
+        const name = 'csrftoken';
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    };
+
     // ========== API REQUESTS ==========
 
     const fetchAPI = async (endpoint, options = {}) => {
@@ -77,15 +101,28 @@ const DashboardMed = (() => {
             headers: {
                 'Content-Type': 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'X-CSRFToken': getCsrfToken(),
             },
             credentials: 'include',
         };
         try {
             const resp = await fetch(url, { ...defaults, ...options });
-            if (!resp.ok) throw new Error(`Erreur ${resp.status}: ${resp.statusText}`);
+            if (!resp.ok) {
+                let errorDetails = `Erreur ${resp.status}: ${resp.statusText}`;
+                try {
+                    const errorData = await resp.json();
+                    if (errorData.error) {
+                        errorDetails = errorData.error;
+                    }
+                } catch (e) {
+                    // Pas de JSON, utiliser le statusText
+                }
+                console.error(`❌ API ${options.method || 'GET'} ${url}:`, errorDetails);
+                throw new Error(errorDetails);
+            }
             return await resp.json();
         } catch (err) {
+            console.error(`❌ Erreur API (${url}):`, err.message);
             showError(err.message);
             throw err;
         }
@@ -95,32 +132,43 @@ const DashboardMed = (() => {
 
     const loadUserProfile = async () => {
         try {
+            console.log('👤 Chargement du profil utilisateur...');
             const data = await fetchAPI(config.endpoints.user);
             state.currentUser = data;
             const name = data.first_name || data.username || 'Médecin';
+            console.log('✓ Profil chargé:', name);
             ['username', 'sidebar-username'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.textContent = name;
             });
-        } catch (e) { console.warn('Profil non chargé:', e.message); }
+        } catch (e) { 
+            console.error('❌ Profil non chargé:', e.message);
+            showError('Impossible de charger le profil utilisateur');
+        }
     };
 
     const loadDashboardData = async () => {
         try {
+            console.log('📊 Chargement des données dashboard...');
             const data = await fetchAPI(config.endpoints.dashboard);
             setText('stat-today-patients', data.patients_today ?? 0);
             setText('stat-waiting', data.patients_waiting ?? 0);
             setText('stat-completed', data.consultations_completed ?? 0);
             setText('stat-prescriptions', data.prescriptions_today ?? 0);
             setText('rdv-badge', data.rdv_waiting ?? 0);
-        } catch (e) { console.warn('Dashboard non chargé'); }
+            console.log('✓ Dashboard data chargées');
+        } catch (e) { 
+            console.error('❌ Dashboard non chargé:', e.message);
+        }
     };
 
     const loadPatients = async () => {
         try {
+            console.log('👥 Chargement des patients...');
             const data = await fetchAPI(config.endpoints.patients);
             state.patients = Array.isArray(data) ? data : (data.results || []);
             state.filteredPatients = [...state.patients];
+            console.log(state.patients.length, 'patients chargés');
             renderPatientTable();
             populatePatientDatalist();
             renderDashboardPatients();
@@ -129,21 +177,28 @@ const DashboardMed = (() => {
 
     const loadConsultations = async () => {
         try {
+            console.log('📋 Chargement des consultations...');
             const data = await fetchAPI(config.endpoints.consultations);
             state.consultations = Array.isArray(data) ? data : (data.results || []);
             state.filteredConsultations = [...state.consultations];
+            console.log(state.consultations.length, 'consultations chargées');
             renderConsultationTable();
             populateConsultationSelect();
-        } catch (e) { console.warn('Consultations non chargées'); }
+        } catch (e) { console.warn('Consultations non chargées:', e.message); }
     };
 
     const loadPrescriptions = async () => {
         try {
+            console.log('📋 Chargement des prescriptions...');
             const data = await fetchAPI(config.endpoints.prescriptions);
             state.prescriptions = Array.isArray(data) ? data : (data.results || []);
             state.filteredPrescriptions = [...state.prescriptions];
+            console.log(state.prescriptions.length, 'prescriptions chargées');
+            populateConsultationSelect();  // Remplir le select des consultations
             renderPrescriptionTable();
-        } catch (e) { console.warn('Prescriptions non chargées'); }
+        } catch (e) { 
+            console.error('❌ Prescriptions non chargées:', e.message);
+        }
     };
 
     const loadAppointments = async (date) => {
@@ -203,14 +258,11 @@ const DashboardMed = (() => {
                 <td title="${cons.diagnostic}">${diagnostic}</td>
                 <td>
                     <div class="action-btns">
-                        <button class="btn-edit" onclick="DashboardMed.validConsultation(${cons.id})" title="Valider">
-                            <i class="fas fa-pen"></i>V
+                        <button class="btn-edit" onclick="DashboardMed.editConsultation(${cons.id})">
+                            <i class="fas fa-pen"></i>
                         </button>
-                        <button class="btn-edit" onclick="DashboardMed.editConsultation(${cons.id})" title="Modifier">
-                            <i class="fas fa-pen"></i>M
-                        </button>
-                        <button class="btn-delete" onclick="DashboardMed.confirmDelete('consultation', ${cons.id}, 'cette consultation')" title="Supprimer">
-                            <i class="fas fa-trash"></i>X
+                        <button class="btn-delete" onclick="DashboardMed.confirmDelete('consultation', ${cons.id}, 'cette consultation')">
+                            <i class="fas fa-trash"></i>
                         </button>
                     </div>
                 </td>
@@ -243,11 +295,15 @@ const DashboardMed = (() => {
             return;
         }
         tbody.innerHTML = state.filteredPrescriptions.map(pres => {
-            const medic = pres.medications ? pres.medications.substring(0, 40) + (pres.medications.length > 40 ? '…' : '') : '-';
+            const medic = pres.medications ? pres.medications.substring(0, 10) + (pres.medications.length > 10 ? '…' : '') : '-';
             return `<tr>
                 <td>${formatDate(pres.date)}</td>
                 <td><strong>${pres.patient_nom || pres.patient || '-'}</strong></td>
-                <td title="${pres.medications}">${medic}</td>
+                <td>
+                    <button class="btn-text-link" onclick="DashboardMed.viewPrescriptionDetail(${pres.id})" title="Voir les détails" style="background: none; border: none; color: #333; cursor: pointer; text-decoration: underline; padding: 0; font-size: inherit; font-family: inherit;" onmouseover="this.style.color='#007bff'" onmouseout="this.style.color='#333'">
+                        ${medic}
+                    </button>
+                </td>
                 <td>
                     <div class="action-btns">
                         <button class="btn-edit" onclick="DashboardMed.editPrescription(${pres.id})" title="Modifier">
@@ -298,14 +354,11 @@ const DashboardMed = (() => {
                 <td><span class="status ${sc}">${sl}</span></td>
                 <td>
                     <div class="action-btns">
-                        <button class="btn-edit" onclick="DashboardMed.validRdv(${r.id})" title="Modifier">
-                            <i class="fas fa-pen"></i>V
+                        <button class="btn-edit" onclick="DashboardMed.editRdv(${r.id})">
+                            <i class="fas fa-pen"></i>
                         </button>
-                        <button class="btn-edit" onclick="DashboardMed.editRdv(${r.id})" title="Modifier">
-                            <i class="fas fa-pen"></i>M
-                        </button>
-                        <button class="btn-delete" onclick="DashboardMed.confirmDelete('rdv', ${r.id}, 'ce rendez-vous')" title="Supprimer">
-                            <i class="fas fa-trash"></i>X
+                        <button class="btn-delete" onclick="DashboardMed.confirmDelete('rdv', ${r.id}, 'ce rendez-vous')">
+                            <i class="fas fa-trash"></i>
                         </button>
                     </div>
                 </td>
@@ -379,7 +432,7 @@ const DashboardMed = (() => {
         const options = state.consultations.map(cons => 
             `<option value="${cons.id}">${formatDate(cons.date)} - ${cons.patient_nom || cons.patient || '-'}</option>`
         ).join('');
-        select.innerHTML = options;
+        select.innerHTML = `<option value="">-- Sélectionner une consultation --</option>${options}`;
     };
 
     // ========== NAVIGATION ==========
@@ -399,7 +452,7 @@ const DashboardMed = (() => {
 
         if (sectionId === 'dashboard')      { loadDashboardData(); loadAppointments(); }
         if (sectionId === 'patients')       loadPatients();
-        if (sectionId === 'consultations')  loadConsultations();
+        if (sectionId === 'consultations')  { loadConsultations(); loadPrescriptions(); }
         if (sectionId === 'prescriptions')  { loadConsultations(); loadPrescriptions(); }
         if (sectionId === 'appointments')   { loadPatients(); loadAppointments(); }
     };
@@ -420,8 +473,6 @@ const DashboardMed = (() => {
         document.getElementById('prescription-id').value = '';
         document.getElementById('formPrescription').reset();
         document.getElementById('prescription-form-title').innerHTML = '<i class="fas fa-file-medical"></i> Nouvelle prescription';
-        const dateInput = document.getElementById('pres-date');
-        if (dateInput) dateInput.value = formatDateInput(new Date());
     };
 
     const resetConsultationForm = () => {
@@ -442,52 +493,69 @@ const DashboardMed = (() => {
 
     const editPrescription = (id) => {
         const pres = state.prescriptions.find(p => p.id === id);
-        if (!pres) return;
+        if (!pres) {
+            console.warn('Prescription non trouvée');
+            return;
+        }
         document.getElementById('prescription-id').value = id;
-        document.getElementById('pres-patient').value = pres.patient_nom || pres.patient || '';
-        document.getElementById('pres-date').value = pres.date || '';
-        document.getElementById('pres-medications').value = pres.medications || '';
-        document.getElementById('pres-notes').value = pres.notes || '';
+        document.getElementById('pres-consultation').value = pres.consultation || '';
+        document.getElementById('pres-medicaments').value = pres.medications || '';
         document.getElementById('prescription-form-title').innerHTML = '<i class="fas fa-pen"></i> Modifier la prescription';
         showForm('prescription-form-container');
     };
 
     const submitPrescriptionForm = async (e) => {
         e.preventDefault();
-        const id = document.getElementById('prescription-id').value;
+        console.log('📋 Soumission du formulaire prescription...');
+        
         const consultationId = document.getElementById('pres-consultation').value;
+        const medicaments = document.getElementById('pres-medicaments').value.trim();
+        
+        console.log('Consultation ID:', consultationId);
+        console.log('Médicaments:', medicaments);
+        
+        // Validation
+        if (!consultationId) {
+            showError('Veuillez sélectionner une consultation');
+            return;
+        }
+        if (!medicaments) {
+            showError('Veuillez entrer les médicaments');
+            return;
+        }
+        
+        const id = document.getElementById('prescription-id').value;
         const payload = {
-            consultation: consultationId || null,
-            medications: document.getElementById('pres-medications').value.trim(),
-            notes:       document.getElementById('pres-notes').value.trim(),
+            consultation: consultationId,
+            medications: medicaments,
         };
 
         try {
+            let response;
             if (id) {
-                await fetchAPI(`${config.endpoints.prescriptions}${id}/`, { method: 'PUT', body: JSON.stringify(payload) });
+                response = await fetchAPI(`${config.endpoints.prescriptions}${id}/`, { 
+                    method: 'PUT', 
+                    body: JSON.stringify(payload) 
+                });
                 showSuccess('Prescription mise à jour !');
             } else {
-                await fetchAPI(config.endpoints.prescriptions, { method: 'POST', body: JSON.stringify(payload) });
+                response = await fetchAPI(config.endpoints.prescriptions, { 
+                    method: 'POST', 
+                    body: JSON.stringify(payload) 
+                });
                 showSuccess('Prescription créée !');
             }
             hideForm('prescription-form-container');
             resetPrescriptionForm();
             loadPrescriptions();
             loadDashboardData();
-        } catch (err) { /* error already shown */ }
+        } catch (err) { 
+            console.error('Erreur prescription:', err);
+            showError(err.message || 'Erreur lors de l\'enregistrement de la prescription');
+        }
     };
 
     // ========== CRUD CONSULTATIONS ==========
-    // accees rapide vers prescription
-    const validConsultation =  (id) => {
-        const cons = state.consultations.find(c => c.id === id);
-        if (!cons) return;
-        document.getElementById('prescription-id').value = id;
-        document.getElementById('pres-patient').value = pres.patient_nom || pres.patient || '';
-        document.getElementById('pres-date').value = pres.date || '';
-        showSection('prescriptions');
-        showForm('formPrescription');
-    }         
 
     const editConsultation = (id) => {
         const cons = state.consultations.find(c => c.id === id);
@@ -526,15 +594,6 @@ const DashboardMed = (() => {
     };
 
     // ========== CRUD RENDEZ-VOUS ==========
-    // acces rapide vers rendez vous
-    const validRdv = (id) => {
-        const r = state.appointments.find(x => x.id === id);
-        if (!r) return;
-        document.getElementById('consultation-id').value = id;
-        document.getElementById('cons-patient').value = cons.patient_nom || cons.patient || '';
-        showSection('consultations');
-        showForm('formConsultation');
-    }
 
     const editRdv = (id) => {
         const r = state.appointments.find(x => x.id === id);
@@ -552,9 +611,10 @@ const DashboardMed = (() => {
     const submitRdvForm = async (e) => {
         e.preventDefault();
         const id = document.getElementById('rdv-id').value;
+        const rdvDate = document.getElementById('rdv-date').value;
         const payload = {
             patient: document.getElementById('rdv-patient').value.trim(),
-            date:    document.getElementById('rdv-date').value,
+            date:    rdvDate,
             heure:   document.getElementById('rdv-heure').value,
             motif:   document.getElementById('rdv-motif').value.trim(),
             statut:  document.getElementById('rdv-statut').value,
@@ -570,6 +630,13 @@ const DashboardMed = (() => {
             }
             hideForm('rdv-form-container');
             resetRdvForm();
+            // Mettre à jour la date et recharger
+            state.rdvDate = new Date(rdvDate);
+            const filterDate = document.getElementById('rdv-filter-date');
+            if (filterDate) {
+                filterDate.value = formatDateInput(state.rdvDate);
+            }
+            setCurrentDate();
             loadAppointments(state.rdvDate);
             loadDashboardData();
         } catch (err) { /* error already shown */ }
@@ -616,9 +683,20 @@ const DashboardMed = (() => {
 
     // ========== DÉCONNEXION ==========
 
-    const logout = () => {
-        if (!confirm('Voulez-vous vraiment vous déconnecter ?')) return;
+    const showLogoutModal = () => {
+        document.getElementById('logout-modal').style.display = 'flex';
+    };
+
+    const closeLogoutModal = () => {
+        document.getElementById('logout-modal').style.display = 'none';
+    };
+
+    const confirmLogout = () => {
         window.location.href = config.endpoints.logout;
+    };
+
+    const logout = () => {
+        showLogoutModal();
     };
 
     // ========== DATE ACTUELLE ==========
@@ -637,6 +715,8 @@ const DashboardMed = (() => {
     // ========== EVENT LISTENERS ==========
 
     const initEventListeners = () => {
+        try {
+            console.log('🔌 Attachement des event listeners...');
 
         // Navigation sidebar
         document.querySelectorAll('.nav-item[data-section]').forEach(link => {
@@ -707,10 +787,15 @@ const DashboardMed = (() => {
 
         // === PRESCRIPTIONS ===
         const btnAddPrescription = document.getElementById('btn-add-prescription');
-        if (btnAddPrescription) btnAddPrescription.addEventListener('click', () => {
-            resetPrescriptionForm();
-            showForm('prescription-form-container');
-        });
+        if (btnAddPrescription) {
+            console.log('✓ Bouton "Nouvelle prescription" trouvé');
+            btnAddPrescription.addEventListener('click', () => {
+                resetPrescriptionForm();
+                showForm('prescription-form-container');
+            });
+        } else {
+            console.warn('✗ Bouton "Nouvelle prescription" NOT FOUND');
+        }
 
         const btnClosePrescriptionForm = document.getElementById('btn-close-prescription-form');
         if (btnClosePrescriptionForm) btnClosePrescriptionForm.addEventListener('click', () => hideForm('prescription-form-container'));
@@ -719,7 +804,12 @@ const DashboardMed = (() => {
         if (btnCancelPrescription) btnCancelPrescription.addEventListener('click', () => { resetPrescriptionForm(); hideForm('prescription-form-container'); });
 
         const formPrescription = document.getElementById('formPrescription');
-        if (formPrescription) formPrescription.addEventListener('submit', submitPrescriptionForm);
+        if (formPrescription) {
+            console.log('✓ Formulaire prescription trouvé, attachement du listener submit');
+            formPrescription.addEventListener('submit', submitPrescriptionForm);
+        } else {
+            console.warn('✗ Formulaire prescription NOT FOUND - IDs ne correspondent pas!');
+        }
 
         const prescriptionSearch = document.getElementById('prescription-search');
         if (prescriptionSearch) {
@@ -808,30 +898,219 @@ const DashboardMed = (() => {
         if (modal) modal.addEventListener('click', (e) => {
             if (e.target === modal) closeDeleteModal();
         });
+
+        // Modal déconnexion
+        const confirmLogoutBtn = document.getElementById('confirm-logout-btn');
+        if (confirmLogoutBtn) confirmLogoutBtn.addEventListener('click', confirmLogout);
+
+        const cancelLogoutBtn = document.getElementById('cancel-logout-btn');
+        if (cancelLogoutBtn) cancelLogoutBtn.addEventListener('click', closeLogoutModal);
+
+        // Fermer modal en cliquant à l'extérieur
+        const logoutModal = document.getElementById('logout-modal');
+        if (logoutModal) logoutModal.addEventListener('click', (e) => {
+            if (e.target === logoutModal) closeLogoutModal();
+        });
+
+        // Fermer prescription detail modal en cliquant à l'extérieur
+        const prescriptionDetailModal = document.getElementById('prescription-detail-modal');
+        if (prescriptionDetailModal) {
+            prescriptionDetailModal.addEventListener('click', (e) => {
+                if (e.target === prescriptionDetailModal) closePrescriptionDetailModal();
+            });
+        }
+        } catch (err) {
+            console.error('❌ Erreur lors de l\'attachement des event listeners:', err);
+            console.error(err.stack);
+        }
     };
 
     // ========== INIT ==========
 
     const init = async () => {
-        console.log('Initialisation Dashboard Médecin...');
+        console.log('🚀 Initialisation Dashboard Médecin...');
         setCurrentDate();
         await loadUserProfile();
         await loadDashboardData();
         await loadPatients();
+        await loadConsultations();  // Charger les consultations au démarrage
+        await loadPrescriptions();  // Charger les prescriptions au démarrage
+        console.log('✓ Toutes les données chargées');
         initEventListeners();
+        console.log('✓ Event listeners attachés');
         showSection('dashboard');
+    };
+
+    // ========== PRESCRIPTION DETAIL MODAL ==========
+
+    let currentPrescription = null;
+
+    const viewPrescriptionDetail = (id) => {
+        const pres = state.prescriptions.find(p => p.id === id);
+        if (!pres) return;
+        
+        currentPrescription = pres;
+        
+        // Remplir la modale
+        document.getElementById('detail-patient-nom').textContent = pres.patient_nom || '-';
+        document.getElementById('detail-medecin-nom').textContent = pres.medecin_nom || '-';
+        document.getElementById('detail-consultation-date').textContent = formatDate(pres.date) || '-';
+        document.getElementById('detail-symptome').textContent = pres.symptome || '-';
+        document.getElementById('detail-diagnostic').textContent = pres.diagnostic || '-';
+        document.getElementById('detail-medications').textContent = pres.medications || '-';
+        
+        // Afficher la modale
+        document.getElementById('prescription-detail-modal').style.display = 'flex';
+    };
+
+    const closePrescriptionDetailModal = () => {
+        document.getElementById('prescription-detail-modal').style.display = 'none';
+        currentPrescription = null;
+    };
+
+    const printPrescription = () => {
+        if (!currentPrescription) return;
+        
+        const pres = currentPrescription;
+        
+        // Créer une fenêtre d'impression
+        const printWindow = window.open('', '', 'height=600,width=800');
+        const printContent = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Prescription - ${pres.patient_nom}</title>
+                <style>
+                    body {
+                        font-family: Arial, sans-serif;
+                        padding: 20px;
+                        color: #333;
+                    }
+                    .header {
+                        text-align: center;
+                        margin-bottom: 30px;
+                        border-bottom: 2px solid #007bff;
+                        padding-bottom: 20px;
+                    }
+                    .header h1 {
+                        margin: 0;
+                        color: #007bff;
+                    }
+                    .header p {
+                        margin: 5px 0;
+                        color: #666;
+                    }
+                    .prescription-content {
+                        margin-bottom: 30px;
+                    }
+                    .section {
+                        margin-bottom: 20px;
+                    }
+                    .section-title {
+                        font-weight: bold;
+                        background-color: #f0f8ff;
+                        padding: 10px;
+                        border-left: 4px solid #007bff;
+                        margin-bottom: 10px;
+                    }
+                    .section-content {
+                        padding-left: 20px;
+                        white-space: pre-wrap;
+                        line-height: 1.6;
+                    }
+                    .footer {
+                        text-align: center;
+                        margin-top: 40px;
+                        padding-top: 20px;
+                        border-top: 1px solid #ddd;
+                        color: #999;
+                        font-size: 12px;
+                    }
+                    .info-row {
+                        display: flex;
+                        margin-bottom: 10px;
+                        align-items: flex-start;
+                    }
+                    .info-label {
+                        font-weight: bold;
+                        width: 150px;
+                        min-width: 150px;
+                    }
+                    .info-value {
+                        flex: 1;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1>PRESCRIPTION MÉDICALE</h1>
+                    <p>Cabinet Médical</p>
+                </div>
+                
+                <div class="prescription-content">
+                    <div class="section">
+                        <div class="section-title">Informations</div>
+                        <div class="section-content">
+                            <div class="info-row">
+                                <div class="info-label">Patient:</div>
+                                <div class="info-value">${pres.patient_nom || '-'}</div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-label">Médecin:</div>
+                                <div class="info-value">${pres.medecin_nom || '-'}</div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-label">Date:</div>
+                                <div class="info-value">${formatDate(pres.date) || '-'}</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="section">
+                        <div class="section-title">Symptômes</div>
+                        <div class="section-content">${pres.symptome || '-'}</div>
+                    </div>
+                    
+                    <div class="section">
+                        <div class="section-title">Diagnostic</div>
+                        <div class="section-content">${pres.diagnostic || '-'}</div>
+                    </div>
+                    
+                    <div class="section">
+                        <div class="section-title">Prescription Médicale</div>
+                        <div class="section-content">${pres.medications || '-'}</div>
+                    </div>
+                </div>
+                
+                <div class="footer">
+                    <p>Cette prescription a été générée le ${new Date().toLocaleDateString('fr-FR')}</p>
+                </div>
+            </body>
+            </html>
+        `;
+        
+        printWindow.document.write(printContent);
+        printWindow.document.close();
+        printWindow.focus();
+        
+        // Imprimer après un délai pour que le contenu soit bien chargé
+        setTimeout(() => {
+            printWindow.print();
+            printWindow.close();
+        }, 250);
     };
 
     // ========== API PUBLIQUE ==========
     return {
         init,
         showSection,
-        validConsultation,
-        validRdv,
         editConsultation,
         editPrescription,
         editRdv,
         confirmDelete,
+        viewPrescriptionDetail,
+        closePrescriptionDetailModal,
+        printPrescription,
         getState: () => state,
     };
 

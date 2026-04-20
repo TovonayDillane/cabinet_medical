@@ -162,6 +162,122 @@
             color: var(--text-muted);
         }
 
+        /* ===== MESSAGES STYLING ===== */
+        #message {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 9999;
+            max-width: 500px;
+            width: calc(100% - 40px);
+        }
+
+        .messages {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .messages li {
+            padding: 16px 20px;
+            border-radius: 12px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+            animation: slideDown 0.4s ease-out, slideOut 0.4s ease-out 4.6s forwards;
+            backdrop-filter: blur(10px);
+            border: 1px solid;
+            font-size: 0.95rem;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideOut {
+            to {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+        }
+
+        .messages li::before {
+            content: '⚠';
+            font-size: 1.2rem;
+            flex-shrink: 0;
+        }
+
+        /* Error messages */
+        .messages li.error {
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.05) 100%);
+            color: #991b1b;
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+
+        .messages li.error::before {
+            content: '✕';
+            color: #dc2626;
+        }
+
+        /* Success messages */
+        .messages li.success {
+            background: linear-gradient(135deg, rgba(34, 197, 94, 0.1) 0%, rgba(22, 163, 74, 0.05) 100%);
+            color: #166534;
+            border-color: rgba(34, 197, 94, 0.3);
+        }
+
+        .messages li.success::before {
+            content: '✓';
+            color: #22c55e;
+        }
+
+        /* Warning messages */
+        .messages li.warning {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(217, 119, 6, 0.05) 100%);
+            color: #92400e;
+            border-color: rgba(245, 158, 11, 0.3);
+        }
+
+        .messages li.warning::before {
+            content: '!';
+            color: #f59e0b;
+        }
+
+        /* Info messages */
+        .messages li.info {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.05) 100%);
+            color: #1e40af;
+            border-color: rgba(59, 130, 246, 0.3);
+        }
+
+        .messages li.info::before {
+            content: 'ⓘ';
+            color: #3b82f6;
+        }
+
+        .messages li.close-btn {
+            cursor: pointer;
+            margin-left: auto;
+            padding: 4px 8px;
+            opacity: 0.6;
+            transition: opacity 0.2s ease;
+        }
+
+        .messages li.close-btn:hover {
+            opacity: 1;
+        }
+
     </style>
 </head>
 <body>
@@ -198,6 +314,7 @@
         const loader = document.getElementById('loader');
         const btnText = document.getElementById('btnText');
         const arrowIcon = document.getElementById('arrowIcon');
+        const usernameInput = document.getElementById('username');
 
         togglePassword.addEventListener('click', () => {
             const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
@@ -205,25 +322,90 @@
             eyeIcon.setAttribute('data-lucide', type === 'password' ? 'eye' : 'eye-off');
             lucide.createIcons();
         });
-        
-        /* loginForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            btnText.textContent = "Vérification...";
+
+        // Feedback sur le formulaire de connexion
+        loginForm.addEventListener('submit', (e) => {
+            const username = usernameInput.value.trim();
+            const password = passwordInput.value;
+
+            // Validation côté client
+            if (!username) {
+                e.preventDefault();
+                usernameInput.focus();
+                usernameInput.style.borderColor = '#dc2626';
+                usernameInput.style.boxShadow = '0 0 0 4px rgba(220, 38, 38, 0.1)';
+                setTimeout(() => {
+                    usernameInput.style.borderColor = '';
+                    usernameInput.style.boxShadow = '';
+                }, 3000);
+                return;
+            }
+
+            if (!password) {
+                e.preventDefault();
+                passwordInput.focus();
+                passwordInput.style.borderColor = '#dc2626';
+                passwordInput.style.boxShadow = '0 0 0 4px rgba(220, 38, 38, 0.1)';
+                setTimeout(() => {
+                    passwordInput.style.borderColor = '';
+                    passwordInput.style.boxShadow = '';
+                }, 3000);
+                return;
+            }
+
+            // Afficher le loader
+            btnText.textContent = "Connexion en cours...";
             loader.style.display = "block";
             arrowIcon.style.display = "none";
-            submitBtn.style.pointerEvents = "none";
+            submitBtn.disabled = true;
             submitBtn.style.opacity = "0.8";
+            submitBtn.style.cursor = "not-allowed";
+        });
 
+        // Amélioration des messages d'erreur
+        const messages = document.querySelectorAll('.messages li');
+        messages.forEach((msg, index) => {
+            // Ajouter une animation de shake pour les erreurs
+            if (msg.classList.contains('error')) {
+                msg.style.animation = 'shake 0.5s ease-out, slideDown 0.4s ease-out, slideOut 0.4s ease-out 4.6s forwards';
+                // Focus sur le formulaire si erreur
+                if (loginForm && loginForm.getBoundingClientRect) {
+                    const rect = loginForm.getBoundingClientRect();
+                    if (rect.top < 0) {
+                        loginForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                }
+            }
+
+            // Auto-remove messages après 5 secondes
             setTimeout(() => {
-                alert("Connexion réussie ! Redirection vers le tableau de bord...");
+                msg.style.animation = 'slideOut 0.4s ease-out forwards';
+                setTimeout(() => msg.remove(), 400);
+            }, 4600 + index * 100);
+        });
+
+        // Ajouter animation shaking pour les erreurs
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes shake {
+                0%, 100% { transform: translateX(0); }
+                25% { transform: translateX(-10px); }
+                75% { transform: translateX(10px); }
+            }
+        `;
+        document.head.appendChild(style);
+
+        // Réinitialiser le bouton si la page est rechargée (au cas où)
+        window.addEventListener('pageshow', function(event) {
+            if (event.persisted) {
                 btnText.textContent = "Se connecter";
                 loader.style.display = "none";
                 arrowIcon.style.display = "block";
-                submitBtn.style.pointerEvents = "all";
+                submitBtn.disabled = false;
                 submitBtn.style.opacity = "1";
-            }, 2000);
+                submitBtn.style.cursor = "pointer";
+            }
         });
-        */
     </script>
 </body>
 </html>

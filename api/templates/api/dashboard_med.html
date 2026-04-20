@@ -74,10 +74,6 @@
                         <i class="fas fa-calendar"></i>
                         <span id="current-date"></span>
                     </div>
-                    <div class="notification-btn" title="Notifications">
-                        <i class="fas fa-bell"></i>
-                        <span class="notif-dot"></span>
-                    </div>
                     <div class="user-section">
                         <div class="user-info">
                             <span class="user-name">Dr. <span id="username">-</span></span>
@@ -327,7 +323,7 @@
                     <div class="section-header">
                         <div>
                             <h1>Prescriptions</h1>
-                            <p>Ordonnances liées aux consultations</p>
+                            <p>Gestion des prescriptions</p>
                         </div>
                         <button class="btn-primary" id="btn-add-prescription">
                             <i class="fas fa-plus"></i> Nouvelle prescription
@@ -367,7 +363,7 @@
                     <!-- Table Prescriptions -->
                     <div class="table-container">
                         <div class="table-header">
-                            <h2>Prescriptions</h2>
+                            <h2><i class="fas fa-file-medical"></i> Prescriptions</h2>
                             <div class="search-inline">
                                 <i class="fas fa-search"></i>
                                 <input type="text" id="prescription-search" class="search-input-sm" placeholder="Rechercher...">
@@ -518,6 +514,59 @@
         </main>
     </div>
 
+    <!-- Modal Détails Prescription -->
+    <div class="modal-overlay" id="prescription-detail-modal" style="display:none;">
+        <div class="modal-box" style="max-width: 600px;">
+            <div class="modal-title-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3><i class="fas fa-file-medical"></i> Prescription</h3>
+                <button class="btn-icon-close" onclick="DashboardMed.closePrescriptionDetailModal()" style="margin: 0;">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+                <div style="margin-bottom: 15px;">
+                    <label style="font-weight: bold; color: #555;">Patient</label>
+                    <p id="detail-patient-nom" style="margin: 5px 0 0 0;">-</p>
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="font-weight: bold; color: #555;">Médecin</label>
+                    <p id="detail-medecin-nom" style="margin: 5px 0 0 0;">-</p>
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="font-weight: bold; color: #555;">Date de la consultation</label>
+                    <p id="detail-consultation-date" style="margin: 5px 0 0 0;">-</p>
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="font-weight: bold; color: #555;">Symptômes</label>
+                    <p id="detail-symptome" style="margin: 5px 0 0 0; padding: 10px; background: #f5f5f5; border-radius: 4px;">-</p>
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="font-weight: bold; color: #555;">Diagnostic</label>
+                    <p id="detail-diagnostic" style="margin: 5px 0 0 0; padding: 10px; background: #f5f5f5; border-radius: 4px;">-</p>
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="font-weight: bold; color: #555;">Médicaments</label>
+                    <p id="detail-medications" style="margin: 5px 0 0 0; padding: 10px; background: #f0f8ff; border-radius: 4px; white-space: pre-wrap; line-height: 1.6;">-</p>
+                </div>
+            </div>
+            
+            <div style="display: flex; justify-content: center; gap: 10px; margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd;">
+                <button class="btn-primary" onclick="DashboardMed.printPrescription()" style="gap: 8px;">
+                    <i class="fas fa-print"></i> Imprimer
+                </button>
+                <button class="btn-secondary" onclick="DashboardMed.closePrescriptionDetailModal()">
+                    <i class="fas fa-times"></i> Fermer
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal de confirmation suppression -->
     <div class="modal-overlay" id="delete-modal" style="display:none;">
         <div class="modal-box">
@@ -527,6 +576,19 @@
             <div class="modal-actions">
                 <button class="btn-danger" id="confirm-delete-btn">Supprimer</button>
                 <button class="btn-secondary" id="cancel-delete-btn">Annuler</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de confirmation déconnexion -->
+    <div class="modal-overlay" id="logout-modal" style="display:none;">
+        <div class="modal-box">
+            <div class="modal-icon" style="background: rgba(249, 115, 22, 0.15); color: var(--warning);"><i class="fas fa-sign-out-alt"></i></div>
+            <h3>Confirmer la déconnexion</h3>
+            <p>Êtes-vous sûr de vouloir vous déconnecter ?</p>
+            <div class="modal-actions">
+                <button class="btn-danger" id="confirm-logout-btn">Déconnexion</button>
+                <button class="btn-secondary" id="cancel-logout-btn">Annuler</button>
             </div>
         </div>
     </div>

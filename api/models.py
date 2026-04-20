@@ -55,7 +55,11 @@ class RendezVous(models.Model):
     medecin = models.ForeignKey(Medecin, on_delete=models.CASCADE)
     date = models.DateField()
     heure = models.TimeField()
+    motif = models.TextField(blank=True, default='')
     statut = models.CharField(max_length=11, default='attente')
+    
+    def __str__(self):
+        return f'RDV {self.patient.nom} - {self.date} {self.heure}'
 
 class Consultation(models.Model):
     patient = models.ForeignKey(Patient, on_delete=models.CASCADE)

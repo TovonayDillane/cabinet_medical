@@ -66,6 +66,30 @@ const DashboardSecr = (() => {
     const showError = (msg) => showToast(msg, 'error');
     const showSuccess = (msg) => showToast(msg, 'success');
 
+    // ========== CSRF TOKEN HELPER ==========
+
+    const getCsrfToken = () => {
+        // Try to get from DOM first
+        const tokenElement = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (tokenElement && tokenElement.value) {
+            return tokenElement.value;
+        }
+        // Fallback: extract from cookies
+        const name = 'csrftoken';
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    };
+
     // ========== API REQUESTS ==========
 
     const fetchAPI = async (endpoint, options = {}) => {
@@ -74,7 +98,7 @@ const DashboardSecr = (() => {
             headers: {
                 'Content-Type': 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'X-CSRFToken': getCsrfToken(),
             },
             credentials: 'include',
         };
@@ -591,9 +615,20 @@ const DashboardSecr = (() => {
 
     // ========== DÉCONNEXION ==========
 
-    const logout = () => {
-        if (!confirm('Voulez-vous vraiment vous déconnecter ?')) return;
+    const showLogoutModal = () => {
+        document.getElementById('logout-modal').style.display = 'flex';
+    };
+
+    const closeLogoutModal = () => {
+        document.getElementById('logout-modal').style.display = 'none';
+    };
+
+    const confirmLogout = () => {
         window.location.href = config.endpoints.logout;
+    };
+
+    const logout = () => {
+        showLogoutModal();
     };
 
     // ========== DATE ACTUELLE ==========
@@ -786,6 +821,19 @@ const DashboardSecr = (() => {
         const modal = document.getElementById('delete-modal');
         if (modal) modal.addEventListener('click', (e) => {
             if (e.target === modal) closeDeleteModal();
+        });
+
+        // Modal déconnexion
+        const confirmLogoutBtn = document.getElementById('confirm-logout-btn');
+        if (confirmLogoutBtn) confirmLogoutBtn.addEventListener('click', confirmLogout);
+
+        const cancelLogoutBtn = document.getElementById('cancel-logout-btn');
+        if (cancelLogoutBtn) cancelLogoutBtn.addEventListener('click', closeLogoutModal);
+
+        // Fermer modal en cliquant à l'extérieur
+        const logoutModal = document.getElementById('logout-modal');
+        if (logoutModal) logoutModal.addEventListener('click', (e) => {
+            if (e.target === logoutModal) closeLogoutModal();
         });
     };
 

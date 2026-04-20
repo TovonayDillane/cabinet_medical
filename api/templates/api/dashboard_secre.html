@@ -70,10 +70,6 @@
                         <i class="fas fa-calendar"></i>
                         <span id="current-date"></span>
                     </div>
-                    <div class="notification-btn" title="Notifications">
-                        <i class="fas fa-bell"></i>
-                        <span class="notif-dot"></span>
-                    </div>
                     <div class="user-section">
                         <div class="user-info">
                             <span class="user-name"><span id="username">-</span></span>
@@ -555,6 +551,19 @@
             <div class="modal-actions">
                 <button class="btn-danger" id="confirm-delete-btn">Supprimer</button>
                 <button class="btn-secondary" id="cancel-delete-btn">Annuler</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de confirmation déconnexion -->
+    <div class="modal-overlay" id="logout-modal" style="display:none;">
+        <div class="modal-box">
+            <div class="modal-icon" style="background: rgba(249, 115, 22, 0.15); color: var(--warning);"><i class="fas fa-sign-out-alt"></i></div>
+            <h3>Confirmer la déconnexion</h3>
+            <p>Êtes-vous sûr de vouloir vous déconnecter ?</p>
+            <div class="modal-actions">
+                <button class="btn-danger" id="confirm-logout-btn">Déconnexion</button>
+                <button class="btn-secondary" id="cancel-logout-btn">Annuler</button>
             </div>
         </div>
     </div>
